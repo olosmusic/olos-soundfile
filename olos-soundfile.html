@@ -1,0 +1,424 @@
+<link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="../paper-slider/paper-slider.html">
+<link rel="import" href="../paper-icon-button/paper-icon-button.html">
+<link rel="import" href="../paper-dropdown-menu/paper-dropdown-menu.html">
+<link rel="import" href="../paper-dropdown/paper-dropdown.html">
+<link rel="import" href="../paper-item/paper-item.html">
+<link rel="import" href="../paper-input/paper-input.html">
+<link rel="import" href="../core-menu/core-menu.html">
+<!-- <link rel="import" href="../font-roboto/roboto.html"> -->
+
+<!--
+olos-soundfile
+##### Example
+
+
+@element olos-soundfile
+@blurb 
+@status alpha
+@homepage 
+-->
+<polymer-element name="olos-soundfile" attributes="rateParam output width height color src rootfolder">
+  <template>
+    <link rel="stylesheet" href="olos-soundfile.css"></link>
+
+    <div id="container" style="width:100%;height:100%;">
+
+    <div id="controls" style="height:50px">
+      <paper-icon-button on-click="{{_toggleStart}}" id="start" src="icons/play.png" label="play/stop"></paper-icon-button>
+      <paper-icon-button on-click="{{clickInput}}" icon="file-upload" label="upload file"></paper-icon-button>
+      <paper-slider label="playback rate" pin="true" id="rateSlider" min="0.01" max="3" immediateValue="{{sliderValue}}" on-click="{{stopProp}}" on-immediate-value-change="{{setRate}}" style="width: 69%"></paper-slider>
+
+        <input is="paper-input" type="file" hidden id="sfInput"></input>
+    </div>
+<!--       <paper-dropdown-menu label="Buffer Source">
+          <paper-dropdown class="dropdown">
+              <core-menu selected="0" on-core-select="{{setType}}" class="menu">
+                  <paper-item label="loadNew">Load New</paper-item>
+                  <paper-item label="doorbell">Doorbell</paper-item>
+              </core-menu>
+          </paper-dropdown>
+      </paper-dropdown-menu>
+ -->    
+    <div id="waveform" style="width:100%; height:100%"></div>
+    </div>
+  </template>
+  <script>
+    (function(params){
+
+      Polymer('olos-soundfile', {
+
+        rate: 440,
+
+        // TO DO - make these work
+        /**
+         * color
+         * @property color
+         * @type {String} 
+         * @default #00CCFF
+         */
+        color: '#00CCFF',
+        /**
+         * Width of module
+         * @property width
+         * @type {Number}
+         */
+        width: 600,
+        /**
+         * Height
+         * @property height
+         * @type {Number}
+         */
+        height: 25,
+        playing: false,
+
+        // inputs and outputs
+        output: null,
+        rateParam: [],
+
+        publicMethods: ['settings', 'setupRateSlider'],
+
+        rootfolder: '../olos-soundfile/',
+
+        /**
+         *  position of the most recently played sample
+         *  
+         *  @type {Number}
+         */
+        lastPos: 0,
+
+        loopStart: 0,
+        loopEnd: null,
+        loop: false,
+
+        /**
+         *  p5.SoundFile
+         *
+         *  @property sf
+         *  @type p5.SoundFile
+         */
+        sf: null,
+
+        /**
+         *  p5 sketch associated with this element
+         */
+        _p5: undefined,
+
+        ready: function() {
+          var self = this;
+
+          self.sf = new p5.SoundFile();
+          self.sf.disconnect();
+
+          self.slider = this.$.rateSlider;
+
+          self.setupRateSlider();
+
+          self.$.sfInput.onchange = function(e) {
+            self._handleFileSelect(e, self);
+          };
+
+          self._initCanvas();
+
+
+          Object.defineProperty(self, 'position', {
+            'get': function() {return self.sf.currentTime();},
+            'set' : function(val) {self.sf.jump(val);}
+          });
+
+          Object.defineProperty(self, 'buffer', {
+            'get': function() {return self.sf.buffer;},
+            'set' : function(val) {
+              self.sf.buffer = val;
+            }
+          });
+
+          Object.defineProperty(self, 'rate', {
+            'get': function() {return self.sf.playbackRate;},
+            'set' : function(val) {
+              self.sf.rate(val);
+            }
+          });
+
+          self.output = self.sf.output;
+
+        },
+
+        settings: function() {
+          this.startPos = 0;
+          this.endPos = this.buffer.duration;
+          this.loop = false;
+        },
+
+        /**
+         * Start soundfile
+         */
+        start: function(timeFromNow) {
+          var self = this;
+          var t = timeFromNow || 0;
+          this.$.start.src = self.rootfolder + "icons/stop.png";
+          this.sf.play(t);
+        },
+
+        stop: function(timeFromNow) {
+          var self = this;
+          var t = timeFromNow || 0;
+          this.$.start.src = self.rootfolder + "icons/play.png";
+          this.sf.stop(t);
+        },
+
+        _toggleStart: function() {
+          if(!this.playing) {
+            this.start();
+          }
+          else {
+            this.stop();
+          }
+          this.playing = !this.playing;
+        },
+
+        stopProp: function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+        },
+
+        // publicly editable
+        setupRateSlider: function() {
+          this.slider.min = 0;
+          this.slider.max = 3;
+          this.slider.step = 0.001;
+          this.slider.value = 1;
+        },
+
+        // TO DO
+        rateParamChanged: function() {
+          // to do
+        },
+
+        update: function() {
+          console.log('update--what does this do?');
+          // this.rateParamChanged();
+        },
+
+        rateChanged: function() {
+
+          // if (this.rate <= 0) {
+          //   this.rate = .01;
+          //   console.log('Error: Oscillator rate must be greater than 0. Setting to 0.000001')
+          //   if (this.bufferSourceNode) {
+          //     this.sliderValue = this.bufferSourceNode.playbackRate.value;
+          //   } else {
+          //     this.sliderValue = .001;
+          //   }
+          // }
+        },
+
+        // Handle File Loading
+
+        _handleFileSelect: function(e, s) {
+          var self = s;
+          var file = e.path[0].files[0];
+
+          if (file && file.type && file.type.indexOf('audio') === -1) {
+            console.log('Error: not a valid audio file');
+            return;
+          }
+
+          self.reader = new FileReader();
+          self.reader.onload = function(b) {
+            self._loadSoundSuccess(b);
+          };
+
+          self.reader.onerror = function(e) {
+            self._loadSoundError(e);
+          }
+          // self.reader.addEventListener('onerror', );
+          self.reader.readAsArrayBuffer(file);
+        },
+
+        _loadSoundSuccess: function(s) {
+          var self = this;
+          var arrayBuffer = s.target.result;
+          self._decodeArrayBuffer(arrayBuffer);
+
+          // Remove event listeners and clear the FileReader.
+          try{
+            self.reader.removeEventListener('load', self._loadSoundSuccess);
+            self.reader.removeEventListener('error', self._loadSoundError);
+            self.reader = undefined;
+          } catch(e){console.log('error removing methods')};
+        },
+
+        _loadSoundError: function(e) {
+          console.log('Error decoding audio: ' + e.message);
+
+          // Remove event listeners and clear the FileReader.
+          try{
+            self.reader.removeEventListener('load', self._loadSoundSuccess);
+            self.reader.removeEventListener('error', self._loadSoundError);
+            self.reader = undefined;
+          } catch(e){};
+        },
+
+        _decodeArrayBuffer: function(arrayBuffer) {
+          var self = this;
+
+          audioContext.decodeAudioData(arrayBuffer,
+            function(audioBuffer) {
+              self.buffer = audioBuffer;
+
+              console.log('Success loading audio buffer');
+            },
+            function(error) {
+              console.log('Error decoding audio: ' + error.message);
+            }
+          );
+        },
+
+        // Canvas
+        _initCanvas: function() {
+          var self = this;
+
+          // sketch attributes
+          var sk = function( sketch ) {
+
+            sketch.setup = function() {
+              var waveformDiv = self.$.waveform;
+              var cnv = sketch.createCanvas(this.width,this.height/2);
+              waveformDiv.appendChild(cnv.elt);
+              cnv.canvas.style.setProperty('width', '100%');
+              cnv.canvas.style.setProperty('height', '30%');
+              sketch.noLoop();
+            };
+
+            sketch.draw = function() {
+              // sketch.background(94,33,33);
+              sketch.background(39,7,7);
+              if (self.sf.buffer) {
+                sketch.plotPeaks(self.sf.buffer);
+                sketch.drawCursor();
+              }
+            };
+
+            sketch.plotPeaks = function(buffer) {
+              var stereoPeaks = self._computeWaveformPeaks(buffer, self.width*2);
+              var waveform = stereoPeaks[0];
+              // sketch.fill(246,78,78);
+              // sketch.fill(255,194,54);
+              sketch.fill(255,77,77);
+              sketch.noStroke();
+              sketch.beginShape();
+              for (var i = 0; i< waveform.length; i++){
+                sketch.vertex(sketch.map(i, 0, waveform.length, 0, sketch.width), sketch.map(waveform[i], -1, 1, sketch.height, 0));
+              }
+              sketch.endShape();
+            };
+
+            sketch.drawCursor = function() {
+              var lastPos = self.sf.currentTime();
+              // var sample = self.lastPos;
+              // var percent = sample/self.buffer.length;
+              var percent = lastPos/self.sf.duration();
+              var xPos = percent * sketch.width;
+              sketch.strokeWeight(5);
+              sketch.stroke(255,255,0);
+              sketch.line(xPos, 0, xPos, sketch.height);
+            }
+          }
+
+          self._p5 = new p5(sk, 'waveform');
+        },
+
+        _draw: function() {
+          this._p5.draw();
+        },
+
+        clickInput: function() {
+          this.$.sfInput.click();
+        },
+
+        // dispose
+        dispose: function() {
+          var self = this;
+
+          // remove p5 sketch
+          self.p5.remove();
+          self.p5 = null;
+
+          // remove audio elements
+          try {
+            self.sf.dispose();
+          } catch(e) {
+            throw 'could not dispose of p5.soundFile';
+          }
+
+          // var nodes = ['sf'];
+          // for (var i = 0; i < nodes.length; i++) {
+          //   try {
+          //     var node = self[nodes[i]];
+          //     node.disconnect();
+          //     node = null;
+          //   } catch(e) { }
+          // }
+        },
+
+        resize: function() {
+          // TO DO: reset p5 width and height
+          var self = this;
+          var padding = 5;
+          var ctrlHeight = self.$.controls.style.height.split('px')[0];
+          var waveformDiv = self.$.waveform;
+          var w = waveformDiv.offsetWidth - padding;
+          var h = waveformDiv.offsetHeight - ctrlHeight - padding;
+          self.p5.resizeCanvas(w, h);
+        },
+
+        /**
+         *  returns multichannel array of peak data
+         */
+        _computeWaveformPeaks: function(buffer, length) {
+          var self = this;
+
+          if (buffer) {
+            // set length to window's width if no length is provided
+            if (!length) {
+              length = 300;
+            }
+
+            if (this.buffer) {
+              var buffer = this.buffer;
+              var sampleSize = buffer.length / length;
+              var sampleStep = ~~(sampleSize) || 1;
+              var channels = 1; // only one channel for now // buffer.numberOfChannels;
+              var peaks = [];
+              for (var c = 0; c < channels; c++) {
+                peaks[c] = new Float32Array(Math.round(length));
+                var chan = buffer.getChannelData(c);
+                for (var i = 0; i < length; i++) {
+                  var start = ~~(i * sampleSize);
+                  var end = ~~(start + sampleSize);
+                  var max = 0;
+                  for (var j = start; j < end; j += sampleStep) {
+                    var value = chan[j];
+                    if (Math.abs(value) > max) {
+                      max = value;
+                    }
+                  }
+                  if (c === 0 ||  Math.abs(max) > peaks[c][i]) {
+                    peaks[c][i] = max;
+                  }
+                }
+              }
+              return peaks;
+            }
+          } else {
+            throw 'Cannot load peaks yet, buffer is not loaded';
+          }
+        },
+
+      });
+
+    })();
+  </script>
+
+</polymer-element>

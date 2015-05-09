@@ -1,0 +1,20 @@
+:host {
+  display: block;
+  color: green;
+  font-family: 'RobotoDraft', sans-serif;
+}
+
+#container {
+/*  border: 2px solid;
+  border-radius: 25px;
+  padding: 20px;
+  background: white;
+  opacity: 90%;
+  cursor: pointer;
+  position:fixed;*/
+}
+
+.thing {
+  box-shadow: 1px 1px 1px #888888;
+  box-shadow: 10px 10px 5px #888888;
+}
