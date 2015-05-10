@@ -18,7 +18,7 @@ olos-soundfile
 @status alpha
 @homepage 
 -->
-<polymer-element name="olos-soundfile" attributes="rateParam output width height color src rootfolder">
+<polymer-element name="olos-soundfile" attributes="rateParam output width height color src">
   <template>
     <link rel="stylesheet" href="olos-soundfile.css"></link>
 
@@ -27,7 +27,7 @@ olos-soundfile
     <div id="controls" style="height:50px">
       <paper-icon-button on-click="{{_toggleStart}}" id="start" src="icons/play.png" label="play/stop"></paper-icon-button>
       <paper-icon-button on-click="{{clickInput}}" icon="file-upload" label="upload file"></paper-icon-button>
-      <paper-slider label="playback rate" pin="true" id="rateSlider" min="0.01" max="3" immediateValue="{{sliderValue}}" on-click="{{stopProp}}" on-immediate-value-change="{{setRate}}" style="width: 69%"></paper-slider>
+      <paper-slider pin label="playback rate" pin="true" id="rateSlider" min="0.01" max="3" immediateValue="{{sliderValue}}" on-click="{{stopProp}}" on-immediate-value-change="{{setRate}}" style="width: 30%"></paper-slider>
 
         <input is="paper-input" type="file" hidden id="sfInput"></input>
     </div>
@@ -40,7 +40,7 @@ olos-soundfile
           </paper-dropdown>
       </paper-dropdown-menu>
  -->    
-    <div id="waveform" style="width:100%; height:100%"></div>
+    <div id="waveform" style="width:100%; height:100%" on-mousedown="{{mouseDn}}" on-mouseup="{{mouseUp}}" on-mousemove="{{mouseDrag}}" on-mouseleave="{{mouseUp}}"></div>
     </div>
   </template>
   <script>
@@ -48,33 +48,33 @@ olos-soundfile
 
       Polymer('olos-soundfile', {
 
-        rate: 440,
-
-        // TO DO - make these work
-        /**
-         * color
-         * @property color
-         * @type {String} 
-         * @default #00CCFF
-         */
-        color: '#00CCFF',
         /**
          * Width of module
          * @property width
          * @type {Number}
          */
-        width: 600,
+        width: 200,
         /**
          * Height
          * @property height
          * @type {Number}
          */
-        height: 25,
+        height: 60,
+
+        /**
+         *  Is the soundfile playing? 
+         *  @property playing
+         *  @type Boolean
+         *  @default false
+         */
         playing: false,
 
         // inputs and outputs
         output: null,
         rateParam: [],
+
+        // path to file
+        src: 'audio/doorbell.mp3',
 
         publicMethods: ['settings', 'setupRateSlider'],
 
@@ -87,9 +87,14 @@ olos-soundfile
          */
         lastPos: 0,
 
-        loopStart: 0,
-        loopEnd: null,
-        loop: false,
+        cueStart: null,
+        cueDur: null,
+        looping: false,
+
+        _dragging: false,
+
+        // array of points for dragging selection
+        _dragPoints: [],
 
         /**
          *  p5.SoundFile
@@ -108,7 +113,12 @@ olos-soundfile
           var self = this;
 
           self.sf = new p5.SoundFile();
+          if (self.src) {
+            self.sf.url = self.rootfolder + self.src;
+            self.sf.load();
+          }
           self.sf.disconnect();
+          self.sf.playMode('restart');
 
           self.slider = this.$.rateSlider;
 
@@ -145,9 +155,7 @@ olos-soundfile
         },
 
         settings: function() {
-          this.startPos = 0;
-          this.endPos = this.buffer.duration;
-          this.loop = false;
+          this.looping = false;
         },
 
         /**
@@ -156,15 +164,36 @@ olos-soundfile
         start: function(timeFromNow) {
           var self = this;
           var t = timeFromNow || 0;
-          this.$.start.src = self.rootfolder + "icons/stop.png";
-          this.sf.play(t);
+          var cueStart = this.cueStart || 0;
+          var cueDur = this.cueDur || null;
+          console.log(cueStart, cueDur);
+          try {
+            if (self.looping) {
+              self.sf.loop(t, self.rate, 1, cueStart, cueDur);
+            } else {
+              self.sf.play(t, self.rate, 1, cueStart, cueDur);
+            }
+            self.sf.bufferSourceNode.onended = function(e) {
+              self.playing = false;
+              self.$.start.src = self.rootfolder + "icons/play.png";
+            };
+            window.setTimeout(function() {
+              self.playing = true;
+              self.$.start.src = self.rootfolder + "icons/stop.png";
+            }, 10);
+          } catch(e) {
+            throw e;
+          }
         },
 
         stop: function(timeFromNow) {
-          var self = this;
           var t = timeFromNow || 0;
-          this.$.start.src = self.rootfolder + "icons/play.png";
-          this.sf.stop(t);
+          try {
+            this.sf.stop(t);
+          } catch(e) {
+            throw 'already stopped';
+          }
+          this.$.start.src = this.rootfolder + "icons/play.png";
         },
 
         _toggleStart: function() {
@@ -198,6 +227,10 @@ olos-soundfile
         update: function() {
           console.log('update--what does this do?');
           // this.rateParamChanged();
+        },
+
+        sliderValueChanged: function() {
+          this.rate = this.sliderValue > 0 ? this.sliderValue : 0.000001;
         },
 
         rateChanged: function() {
@@ -284,7 +317,9 @@ olos-soundfile
 
             sketch.setup = function() {
               var waveformDiv = self.$.waveform;
-              var cnv = sketch.createCanvas(this.width,this.height/2);
+              var w = self.width;
+              var h = self.height;
+              var cnv = sketch.createCanvas(w, h);
               waveformDiv.appendChild(cnv.elt);
               cnv.canvas.style.setProperty('width', '100%');
               cnv.canvas.style.setProperty('height', '30%');
@@ -293,10 +328,15 @@ olos-soundfile
 
             sketch.draw = function() {
               // sketch.background(94,33,33);
-              sketch.background(39,7,7);
+              sketch.background(39,39,39);
               if (self.sf.buffer) {
                 sketch.plotPeaks(self.sf.buffer);
                 sketch.drawCursor();
+
+                if (self._dragPoints.length === 2) {
+                  sketch.drawSelection();
+                }
+
               }
             };
 
@@ -305,7 +345,8 @@ olos-soundfile
               var waveform = stereoPeaks[0];
               // sketch.fill(246,78,78);
               // sketch.fill(255,194,54);
-              sketch.fill(255,77,77);
+              // sketch.fill(255,77,77);
+              sketch.fill(255,180,120);
               sketch.noStroke();
               sketch.beginShape();
               for (var i = 0; i< waveform.length; i++){
@@ -316,15 +357,22 @@ olos-soundfile
 
             sketch.drawCursor = function() {
               var lastPos = self.sf.currentTime();
-              // var sample = self.lastPos;
-              // var percent = sample/self.buffer.length;
               var percent = lastPos/self.sf.duration();
               var xPos = percent * sketch.width;
-              sketch.strokeWeight(5);
-              sketch.stroke(255,255,0);
+              sketch.strokeWeight(2);
+              sketch.stroke(0,255,0);
               sketch.line(xPos, 0, xPos, sketch.height);
             }
-          }
+
+            sketch.drawSelection = function() {
+              sketch.fill(200,200,150, 50);
+              sketch.noStroke();
+              var minPoint = Math.min.apply(null, self._dragPoints) * sketch.width;
+              var maxPoint = Math.max.apply(null, self._dragPoints) * sketch.width;
+              sketch.rect(minPoint, 0, maxPoint - minPoint, sketch.height );
+            }
+
+          };
 
           self._p5 = new p5(sk, 'waveform');
         },
@@ -335,6 +383,49 @@ olos-soundfile
 
         clickInput: function() {
           this.$.sfInput.click();
+        },
+
+
+        // mouse interaction
+        mouseUp: function(e) {
+          var self = this;
+
+          if (self._dragging) {
+            self._dragging = false;
+
+            var minPercent = Math.min.apply(null, self._dragPoints);
+            var maxPercent = Math.max.apply(null, self._dragPoints);
+            self.cueStart = minPercent * self.buffer.duration;
+            self.cueDur = maxPercent * self.buffer.duration - self.cueStart;
+
+            if (this.playing) {
+              this.start();
+            } 
+            // if there is no second drag point, and we're not playing, then the click should reset cue point to 0
+            else if (!self._dragPoints[1]){
+              self.cueStart = 0;
+            }
+
+          }
+
+        },
+
+        mouseDn: function(e) {
+          this._dragging = true;
+
+          // clear dragPoints and reset
+          this._dragPoints = [];
+          this._dragPoints[0] = this._p5.mouseX / this._p5.width;
+
+          this.cueStart = this._dragPoints[0] * this.buffer.duration;
+          this.cueDur = null;
+
+        },
+
+        mouseDrag: function(e) {
+          if (this._dragging) {
+            this._dragPoints[1] = this._p5.mouseX / this._p5.width;
+          }
         },
 
         // dispose
@@ -365,12 +456,17 @@ olos-soundfile
         resize: function() {
           // TO DO: reset p5 width and height
           var self = this;
-          var padding = 5;
-          var ctrlHeight = self.$.controls.style.height.split('px')[0];
+          if (self.$.controls.hidden) {
+            var ctrlHeight = 0;
+            var padding = 2.5;
+          } else {
+            var ctrlHeight = self.$.controls.style.height.split('px')[0];
+            var padding = 5;
+          }
           var waveformDiv = self.$.waveform;
           var w = waveformDiv.offsetWidth - padding;
           var h = waveformDiv.offsetHeight - ctrlHeight - padding;
-          self.p5.resizeCanvas(w, h);
+          self._p5.resizeCanvas(w, h);
         },
 
         /**
