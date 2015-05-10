@@ -2,6 +2,8 @@
   display: block;
   color: green;
   font-family: 'RobotoDraft', sans-serif;
+  font-size:10.5px;
+  padding:0px;
 }
 
 #container {

@@ -6,6 +6,8 @@
 <link rel="import" href="../paper-item/paper-item.html">
 <link rel="import" href="../paper-input/paper-input.html">
 <link rel="import" href="../core-menu/core-menu.html">
+<link rel="import" href="../core-input/core-input.html">
+
 <!-- <link rel="import" href="../font-roboto/roboto.html"> -->
 
 <!--
@@ -25,9 +27,15 @@ olos-soundfile
     <div id="container" style="width:100%;height:100%;">
 
     <div id="controls" style="height:50px">
-      <paper-icon-button on-click="{{_toggleStart}}" id="start" src="icons/play.png" label="play/stop"></paper-icon-button>
-      <paper-icon-button on-click="{{clickInput}}" icon="file-upload" label="upload file"></paper-icon-button>
-      <paper-slider pin label="playback rate" pin="true" id="rateSlider" min="0.01" max="3" immediateValue="{{sliderValue}}" on-click="{{stopProp}}" on-immediate-value-change="{{setRate}}" style="width: 30%"></paper-slider>
+
+      <paper-icon-button on-click="{{_toggleStart}}" id="start" src="icons/play.png" label="play/stop" style="padding:2px"></paper-icon-button>
+      <paper-icon-button on-click="{{clickInput}}" icon="file-upload" label="upload file" style="padding:2px"></paper-icon-button>
+
+      <label>Pitch: </label>
+      <input type="number" is="core-input" id="pitch" min="-12" max="12" step="1" value="{{pitch}}" committedValue="{{pitchValue}}"style="width:40px"></input>
+
+      <label>Rate: </label>
+      <input is="core-input" type="number" label="playback rate (percent)" pin="true" id="rateSlider" min="0.01" max="3" value="{{rateValue}}"committedValue="{{rateValue}}" style="width: 40px"></input>
 
         <input is="paper-input" type="file" hidden id="sfInput"></input>
     </div>
@@ -44,6 +52,7 @@ olos-soundfile
     </div>
   </template>
   <script>
+
     (function(params){
 
       Polymer('olos-soundfile', {
@@ -143,6 +152,25 @@ olos-soundfile
             }
           });
 
+          /**
+           *  Pitch. Related to playback rate,
+           *  assuming that 0 pitchshift is a playback rate of 1.
+           *  
+           *  @property pitch
+           *  @type Number
+           *  @default 0
+           */
+           self.pitch = 0;
+           self.rate = 1;
+           self.rateValue = 1;
+
+          /**
+           *  Playback rate. Related to pitch
+           *  
+           *  @property rate
+           *  @type Number
+           *  @default 1
+           */
           Object.defineProperty(self, 'rate', {
             'get': function() {return self.sf.playbackRate;},
             'set' : function(val) {
@@ -169,6 +197,7 @@ olos-soundfile
           console.log(cueStart, cueDur);
           try {
             if (self.looping) {
+              console.log('looping');
               self.sf.loop(t, self.rate, 1, cueStart, cueDur);
             } else {
               self.sf.play(t, self.rate, 1, cueStart, cueDur);
@@ -206,11 +235,6 @@ olos-soundfile
           this.playing = !this.playing;
         },
 
-        stopProp: function(e) {
-          e.preventDefault();
-          e.stopPropagation();
-        },
-
         // publicly editable
         setupRateSlider: function() {
           this.slider.min = 0;
@@ -224,27 +248,14 @@ olos-soundfile
           // to do
         },
 
-        update: function() {
-          console.log('update--what does this do?');
-          // this.rateParamChanged();
+        rateValueChanged: function() {
+          this.rate = this.rateValue > 0 ? this.rateValue : 0.000001;
+          this.rateToPitch();
         },
 
-        sliderValueChanged: function() {
-          this.rate = this.sliderValue > 0 ? this.sliderValue : 0.000001;
-        },
-
-        rateChanged: function() {
-
-          // if (this.rate <= 0) {
-          //   this.rate = .01;
-          //   console.log('Error: Oscillator rate must be greater than 0. Setting to 0.000001')
-          //   if (this.bufferSourceNode) {
-          //     this.sliderValue = this.bufferSourceNode.playbackRate.value;
-          //   } else {
-          //     this.sliderValue = .001;
-          //   }
-          // }
-        },
+        // pitchValueChanged: function() {
+        //   this.pitch = 
+        // },
 
         // Handle File Loading
 
@@ -343,9 +354,6 @@ olos-soundfile
             sketch.plotPeaks = function(buffer) {
               var stereoPeaks = self._computeWaveformPeaks(buffer, self.width*2);
               var waveform = stereoPeaks[0];
-              // sketch.fill(246,78,78);
-              // sketch.fill(255,194,54);
-              // sketch.fill(255,77,77);
               sketch.fill(255,180,120);
               sketch.noStroke();
               sketch.beginShape();
@@ -511,6 +519,36 @@ olos-soundfile
             throw 'Cannot load peaks yet, buffer is not loaded';
           }
         },
+
+        // freqToPitch: function() {
+        //   return olos.piano.pitchToPlaybackRate(48)
+        // },
+
+        pitchChanged: function() {
+          var rate = this.pitchToRate(this.pitch);
+          if (Number(this.rate).toFixed(3) != rate.toFixed(3)) {
+            this.rateValue = rate;
+          }
+        },
+
+        pitchValueChanged: function() {
+          var rate = this.pitchToRate(this.pitch);
+          console.log(rate);
+          this.rateValue = rate;
+        },
+
+        pitchToRate: function(pitch) {
+          return olos.piano.pitchToPlaybackRate(olos.piano.root + pitch);
+        },
+
+        rateToPitch: function() {
+          this.pitch = Math.round( this.freqToMidi(this.rate * 440) );
+        },
+
+        freqToMidi: function(freq) {
+          return 12*Math.log2(freq/440); // + 69;
+        },
+
 
       });
 
