@@ -20,7 +20,7 @@ olos-soundfile
 @status alpha
 @homepage 
 -->
-<polymer-element name="olos-soundfile" attributes="rateParam output width height color src">
+<polymer-element name="olos-soundfile" attributes="rateParam output width height color src paths">
   <template>
     <link rel="stylesheet" href="olos-soundfile.css"></link>
 
@@ -29,7 +29,22 @@ olos-soundfile
     <div id="controls" style="height:50px">
 
       <paper-icon-button on-click="{{_toggleStart}}" id="start" src="icons/play.png" label="play/stop" style="padding:2px"></paper-icon-button>
-      <paper-icon-button on-click="{{clickInput}}" icon="file-upload" label="upload file" style="padding:2px"></paper-icon-button>
+
+      <paper-dropdown-menu label="Constrained height" on-click="{{buffersChanged}}">
+        <core-dropdown class="dropdown constrained-height">
+          <core-menu>
+
+            <template repeat="{{buf in _bufferNames}}">
+              <core-item on-click="{{toggleBuffer}}">{{buf}}</core-item>
+            </template>
+
+            <core-item>
+              <paper-icon-button on-click="{{clickInput}}" icon="file-upload" label="upload file" style="padding:2px"></paper-icon-button>
+            </core-item>
+          </core-menu>
+        </core-dropdown>
+      </paper-dropdown-menu>
+
 
       <label>Pitch: </label>
       <input type="number" is="core-input" id="pitch" min="-12" max="12" step="1" value="{{pitch}}" committedValue="{{pitchValue}}"style="width:40px"></input>
@@ -83,7 +98,17 @@ olos-soundfile
         rateParam: [],
 
         // path to file
-        src: 'audio/doorbell.mp3',
+        // src: 'audio/doorbell.mp3',
+        src: '../_audio/beatbox.mp3',
+
+        /**
+         *  Array of paths to audio files that will be loaded into the 
+         *  array of available buffers.
+         *  
+         *  @property paths
+         *  @type Array
+         */
+        paths: ['../_audio/beatbox.mp3', '../_audio/doorbell.mp3'],
 
         publicMethods: ['settings', 'setupRateSlider'],
 
@@ -113,6 +138,22 @@ olos-soundfile
          */
         sf: null,
 
+        buffer: null,
+
+        /**
+         *  Array of AudioBuffers.
+         *  
+         *  @property buffers
+         *  @type Array
+         */
+        buffers: {},
+
+        observe: {
+          'buffers' : 'buffersChanged'
+        },
+
+        _bufferNames: [],
+
         /**
          *  p5 sketch associated with this element
          */
@@ -126,6 +167,14 @@ olos-soundfile
             self.sf.url = self.rootfolder + self.src;
             self.sf.load();
           }
+
+          // preload all the paths
+          for (var i = 0; i < self.paths.length; i++) {
+            self._loadBuffer(self.paths[i], function(buf) {
+              self.buffers[buf.name] = buf;
+            });
+          }
+
           self.sf.disconnect();
           self.sf.playMode('restart');
 
@@ -194,10 +243,8 @@ olos-soundfile
           var t = timeFromNow || 0;
           var cueStart = this.cueStart || 0;
           var cueDur = this.cueDur || null;
-          console.log(cueStart, cueDur);
           try {
             if (self.looping) {
-              console.log('looping');
               self.sf.loop(t, self.rate, 1, cueStart, cueDur);
             } else {
               self.sf.play(t, self.rate, 1, cueStart, cueDur);
@@ -269,13 +316,20 @@ olos-soundfile
           }
 
           self.reader = new FileReader();
+
           self.reader.onload = function(b) {
+            // set SRC
+            var path = file.name;
+            var chunks = path.split('/');
+            self.src = chunks[chunks.length - 1];
+
             self._loadSoundSuccess(b);
           };
 
           self.reader.onerror = function(e) {
             self._loadSoundError(e);
           }
+
           // self.reader.addEventListener('onerror', );
           self.reader.readAsArrayBuffer(file);
         },
@@ -310,6 +364,7 @@ olos-soundfile
           audioContext.decodeAudioData(arrayBuffer,
             function(audioBuffer) {
               self.buffer = audioBuffer;
+              self.buffers[self.src] = audioBuffer;
 
               console.log('Success loading audio buffer');
             },
@@ -533,7 +588,6 @@ olos-soundfile
 
         pitchValueChanged: function() {
           var rate = this.pitchToRate(this.pitch);
-          console.log(rate);
           this.rateValue = rate;
         },
 
@@ -549,6 +603,53 @@ olos-soundfile
           return 12*Math.log2(freq/440); // + 69;
         },
 
+        /**
+         *  reverse the audio buffer
+         *
+         *  @method reverseBuffer
+         */
+        reverseBuffer: function() {
+          var self = this;
+
+          self.sf.reverseBuffer();
+          self.sf.reversed = false;
+        },
+
+        toggleBuffer: function(e, item, selected) {
+          var bufName = selected.innerHTML;
+          var buffer = this.buffers[bufName];
+          // console.log(buffer);
+          this.buffer = buffer;
+        },
+
+        _loadBuffer: function (path, callback) {
+
+          var request = new XMLHttpRequest();
+          request.open('GET', path, true);
+          request.responseType = 'arraybuffer';
+
+          // decode asyncrohonously
+          var self = this;
+          request.onload = function () {
+            audioContext.decodeAudioData(request.response, function (buff) {
+              var buffer = buff;
+              var chunks = path.split('/');
+              buffer.name = chunks[chunks.length - 1];
+              if (callback) {
+                callback(buffer);
+              }
+            });
+          };
+          request.send();
+        },
+
+        buffersChanged: function() {
+          this._bufferNames = Object.keys(this.buffers);
+        },
+
+        bufferChanged: function() {
+          this.sf.buffer = buffer;
+        }
 
       });
 
