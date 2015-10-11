@@ -108,7 +108,7 @@ olos-soundfile
          *  @property paths
          *  @type Array
          */
-        paths: ['../_audio/beatbox.mp3', '../_audio/doorbell.mp3'],
+        paths: ['../_audio/whistle.mp3', '../_audio/flute.mp3', '../_audio/tom_01.mp3', '../_audio/triangle_01.mp3', '../_audio/triangle_03.mp3', '../_audio/707/Snare-707.mp3', '../_audio/707/Kick-707.mp3', '../_audio/marimba/C3.mp3', '../_audio/marimba/C3.mp3', '../_audio/design/json1.mp3','../_audio/design/json2.mp3'],
 
         publicMethods: ['settings', 'setupRateSlider'],
 
@@ -243,6 +243,28 @@ olos-soundfile
           var t = timeFromNow || 0;
           var cueStart = this.cueStart || 0;
           var cueDur = this.cueDur || null;
+
+          // envelope if cueStart
+          if (this.cueStart) {
+            console.log('env in');
+            var val = this.output.gain.value;
+            this.output.gain.cancelScheduledValues(audioContext.currentTime + t);
+            this.output.gain.setValueAtTime(val, audioContext.currentTime + t + 0.0001);
+
+            this.output.gain.linearRampToValueAtTime(0, audioContext.currentTime + t + 0002);
+
+            this.output.gain.linearRampToValueAtTime(1, audioContext.currentTime + t + 0.2);
+
+            if (this.cueDur) {
+              console.log('env out');
+              this.output.gain.linearRampToValueAtTime(0, audioContext.currentTime + t + this.cueDur - 0.2);
+            }
+
+          } else {
+            this.output.gain.linearRampToValueAtTime(1, audioContext.currentTime + t);
+          }
+
+
           try {
             if (self.looping) {
               self.sf.loop(t, self.rate, 1, cueStart, cueDur);
@@ -495,15 +517,27 @@ olos-soundfile
         dispose: function() {
           var self = this;
 
-          // remove p5 sketch
-          self.p5.remove();
-          self.p5 = null;
-
           // remove audio elements
-          try {
+          if (self.sf) {
+            // try {
+            for (var i = 0; i < p5.soundOut.soundArray.length; i++) {
+              if (p5.soundOut.soundArray[i] == self.sf) {
+
+                // TO DO: make sure this works in p5.sound instance mode
+                p5.soundOut.soundArray[i].input = null;
+                p5.soundOut.soundArray.splice(i, 1);
+              }
+            }
+
             self.sf.dispose();
-          } catch(e) {
-            throw 'could not dispose of p5.soundFile';
+            console.log('dispose');
+          }
+
+
+          // remove p5 sketch
+          if (self._p5) {
+            self._p5.remove();
+            self._p5 = null;
           }
 
           // var nodes = ['sf'];
@@ -544,8 +578,7 @@ olos-soundfile
               length = 300;
             }
 
-            if (this.buffer) {
-              var buffer = this.buffer;
+            if (typeof(buffer) !== 'undefined') {
               var sampleSize = buffer.length / length;
               var sampleStep = ~~(sampleSize) || 1;
               var channels = 1; // only one channel for now // buffer.numberOfChannels;
@@ -648,7 +681,7 @@ olos-soundfile
         },
 
         bufferChanged: function() {
-          this.sf.buffer = buffer;
+          this.sf.buffer = this.buffer;
         }
 
       });
