@@ -5,11 +5,33 @@
   <title>olos-soundfile Demo</title>
 
   <script src="../webcomponentsjs/webcomponents.min.js"></script>
-  <link rel="import" href="olos-oscillator.html">
-  <style>
-  </style>
+  <script src="../p5js/p5.js"></script>
+  <script src="../p5js/p5.sound.js"></script>
+
+  <script>
+	  audioContext = p5.prototype.getAudioContext();
+
+		window.onload = function() {
+			var elem = document.querySelector('olos-soundfile');
+			elem.toMaster();
+
+			function draw() {
+				window.requestAnimationFrame(function() {
+					elem._draw()
+					window.requestAnimationFrame(draw);
+				});
+			}
+
+			draw();
+		}
+
+	</script>
+
+  <link rel="import" href="olos-soundfile.html">
+
 </head>
 <body unresolved>
 
+<olos-soundfile style="width:600px;"></olos-soundfile>
 </body>
 </html>

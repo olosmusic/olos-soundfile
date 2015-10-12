@@ -2,11 +2,13 @@
 <link rel="import" href="../paper-slider/paper-slider.html">
 <link rel="import" href="../paper-icon-button/paper-icon-button.html">
 <link rel="import" href="../paper-dropdown-menu/paper-dropdown-menu.html">
-<link rel="import" href="../paper-dropdown/paper-dropdown.html">
+<link rel="import" href="../iron-dropdown/iron-dropdown.html">
 <link rel="import" href="../paper-item/paper-item.html">
 <link rel="import" href="../paper-input/paper-input.html">
-<link rel="import" href="../core-menu/core-menu.html">
-<link rel="import" href="../core-input/core-input.html">
+<link rel="import" href="../paper-menu/paper-menu.html">
+<link rel="import" href="../iron-input/iron-input.html">
+
+<link rel="import" href="../olos-helpers/olos-helpers.html">
 
 <!-- <link rel="import" href="../font-roboto/roboto.html"> -->
 
@@ -20,39 +22,48 @@ olos-soundfile
 @status alpha
 @homepage 
 -->
-<polymer-element name="olos-soundfile" attributes="rateParam output width height color src paths">
-  <template>
-    <link rel="stylesheet" href="olos-soundfile.css"></link>
+  <link rel="import" href="../iron-flex-layout/iron-flex-layout.html">
+<dom-module id="olos-soundfile" audiocontext>
+
+  <style>
+    /* TODO(polyup): For speed, consider reworking these styles with .classes
+                     and #ids rather than [attributes].
+    */
+    [hidden] {
+      display: none !important;
+    }
+  </style>
+  <link rel="import" type="css" href="olos-soundfile.css">
+  <template is="auto-binding">
+
+    <olos-helpers id="olos_helpers"></olos-helpers>
 
     <div id="container" style="width:100%;height:100%;">
 
     <div id="controls" style="height:50px">
 
-      <paper-icon-button on-click="{{_toggleStart}}" id="start" src="icons/play.png" label="play/stop" style="padding:2px"></paper-icon-button>
+      <paper-icon-button on-click="_toggleStart" id="start" src="icons/play.png" label="play/stop" style="padding:2px"></paper-icon-button>
 
-      <paper-dropdown-menu label="Constrained height" on-click="{{buffersChanged}}">
-        <core-dropdown class="dropdown constrained-height">
-          <core-menu>
+      <paper-dropdown-menu label="sounds" on-click="buffersChanged" selected="1">>
+          <paper-menu class="dropdown-content">
 
-            <template repeat="{{buf in _bufferNames}}">
-              <core-item on-click="{{toggleBuffer}}">{{buf}}</core-item>
+            <template id="buf_dropdown" is="dom-repeat" items="[[_bufferNames]]" as="buf">
+              <paper-item on-click="toggleBuffer">[[buf]]</paper-item>
             </template>
 
-            <core-item>
-              <paper-icon-button on-click="{{clickInput}}" icon="file-upload" label="upload file" style="padding:2px"></paper-icon-button>
-            </core-item>
-          </core-menu>
-        </core-dropdown>
+            <paper-item>
+              <paper-icon-button on-click="clickInput" icon="file-upload" label="upload file" style="padding:2px"></paper-icon-button>
+            </paper-item>
+          </paper-menu>
       </paper-dropdown-menu>
 
+        <label>Semitones: </label>
+        <input type="number" is="iron-input" id="pitch" min="-36" max="36" step="1" value="{{pitch::input}}" committedvalue="{{pitchValue}}" style="width:40px">
 
-      <label>Pitch: </label>
-      <input type="number" is="core-input" id="pitch" min="-12" max="12" step="1" value="{{pitch}}" committedValue="{{pitchValue}}"style="width:40px"></input>
+        <label>Rate: </label>
+        <input is="iron-input" type="number" label="playback rate (percent)" pin="true" id="rateSlider" min="0.01" max="3" value="{{rateValue::input}}" committedvalue="{{rateValue}}" style="width: 40px">
 
-      <label>Rate: </label>
-      <input is="core-input" type="number" label="playback rate (percent)" pin="true" id="rateSlider" min="0.01" max="3" value="{{rateValue}}"committedValue="{{rateValue}}" style="width: 40px"></input>
-
-        <input is="paper-input" type="file" hidden id="sfInput"></input>
+        <input is="paper-input" type="file" hidden="" id="sfInput">
     </div>
 <!--       <paper-dropdown-menu label="Buffer Source">
           <paper-dropdown class="dropdown">
@@ -62,631 +73,581 @@ olos-soundfile
               </core-menu>
           </paper-dropdown>
       </paper-dropdown-menu>
- -->    
-    <div id="waveform" style="width:100%; height:100%" on-mousedown="{{mouseDn}}" on-mouseup="{{mouseUp}}" on-mousemove="{{mouseDrag}}" on-mouseleave="{{mouseUp}}"></div>
+    --> 
+    <div id="waveform" style="width:100%; height:100%; padding:20px" on-mousedown="mouseDn" on-mouseup="mouseUp" on-mousemove="mouseDrag" on-mouseleave="mouseUp"></div>
     </div>
   </template>
-  <script>
-
-    (function(params){
-
-      Polymer('olos-soundfile', {
-
-        /**
-         * Width of module
-         * @property width
-         * @type {Number}
-         */
-        width: 200,
-        /**
-         * Height
-         * @property height
-         * @type {Number}
-         */
-        height: 60,
-
-        /**
-         *  Is the soundfile playing? 
-         *  @property playing
-         *  @type Boolean
-         *  @default false
-         */
-        playing: false,
-
-        // inputs and outputs
-        output: null,
-        rateParam: [],
-
-        // path to file
-        // src: 'audio/doorbell.mp3',
-        src: '../_audio/beatbox.mp3',
-
-        /**
-         *  Array of paths to audio files that will be loaded into the 
-         *  array of available buffers.
-         *  
-         *  @property paths
-         *  @type Array
-         */
-        paths: ['../_audio/whistle.mp3', '../_audio/flute.mp3', '../_audio/tom_01.mp3', '../_audio/triangle_01.mp3', '../_audio/triangle_03.mp3', '../_audio/707/Snare-707.mp3', '../_audio/707/Kick-707.mp3', '../_audio/marimba/C3.mp3', '../_audio/marimba/C3.mp3', '../_audio/design/json1.mp3','../_audio/design/json2.mp3'],
-
-        publicMethods: ['settings', 'setupRateSlider'],
-
-        rootfolder: '../olos-soundfile/',
-
-        /**
-         *  position of the most recently played sample
-         *  
-         *  @type {Number}
-         */
-        lastPos: 0,
-
-        cueStart: null,
-        cueDur: null,
-        looping: false,
-
-        _dragging: false,
-
-        // array of points for dragging selection
-        _dragPoints: [],
-
-        /**
-         *  p5.SoundFile
-         *
-         *  @property sf
-         *  @type p5.SoundFile
-         */
-        sf: null,
-
-        buffer: null,
-
-        /**
-         *  Array of AudioBuffers.
-         *  
-         *  @property buffers
-         *  @type Array
-         */
-        buffers: {},
-
-        observe: {
-          'buffers' : 'buffersChanged'
-        },
-
-        _bufferNames: [],
-
-        /**
-         *  p5 sketch associated with this element
-         */
-        _p5: undefined,
-
-        ready: function() {
-          var self = this;
-
-          self.sf = new p5.SoundFile();
-          if (self.src) {
-            self.sf.url = self.rootfolder + self.src;
-            self.sf.load();
-          }
-
-          // preload all the paths
-          for (var i = 0; i < self.paths.length; i++) {
-            self._loadBuffer(self.paths[i], function(buf) {
-              self.buffers[buf.name] = buf;
-            });
-          }
-
-          self.sf.disconnect();
-          self.sf.playMode('restart');
-
-          self.slider = this.$.rateSlider;
-
-          self.setupRateSlider();
-
-          self.$.sfInput.onchange = function(e) {
-            self._handleFileSelect(e, self);
-          };
-
-          self._initCanvas();
-
-
-          Object.defineProperty(self, 'position', {
-            'get': function() {return self.sf.currentTime();},
-            'set' : function(val) {self.sf.jump(val);}
-          });
-
-          Object.defineProperty(self, 'buffer', {
-            'get': function() {return self.sf.buffer;},
-            'set' : function(val) {
-              self.sf.buffer = val;
-            }
-          });
-
-          /**
-           *  Pitch. Related to playback rate,
-           *  assuming that 0 pitchshift is a playback rate of 1.
-           *  
-           *  @property pitch
-           *  @type Number
-           *  @default 0
-           */
-           self.pitch = 0;
-           self.rate = 1;
-           self.rateValue = 1;
-
-          /**
-           *  Playback rate. Related to pitch
-           *  
-           *  @property rate
-           *  @type Number
-           *  @default 1
-           */
-          Object.defineProperty(self, 'rate', {
-            'get': function() {return self.sf.playbackRate;},
-            'set' : function(val) {
-              self.sf.rate(val);
-            }
-          });
-
-          self.output = self.sf.output;
-
-        },
-
-        settings: function() {
-          this.looping = false;
-        },
-
-        /**
-         * Start soundfile
-         */
-        start: function(timeFromNow) {
-          var self = this;
-          var t = timeFromNow || 0;
-          var cueStart = this.cueStart || 0;
-          var cueDur = this.cueDur || null;
-
-          // envelope if cueStart
-          if (this.cueStart) {
-            console.log('env in');
-            var val = this.output.gain.value;
-            this.output.gain.cancelScheduledValues(audioContext.currentTime + t);
-            this.output.gain.setValueAtTime(val, audioContext.currentTime + t + 0.0001);
-
-            this.output.gain.linearRampToValueAtTime(0, audioContext.currentTime + t + 0002);
-
-            this.output.gain.linearRampToValueAtTime(1, audioContext.currentTime + t + 0.2);
-
-            if (this.cueDur) {
-              console.log('env out');
-              this.output.gain.linearRampToValueAtTime(0, audioContext.currentTime + t + this.cueDur - 0.2);
-            }
-
-          } else {
-            this.output.gain.linearRampToValueAtTime(1, audioContext.currentTime + t);
-          }
-
-
-          try {
-            if (self.looping) {
-              self.sf.loop(t, self.rate, 1, cueStart, cueDur);
-            } else {
-              self.sf.play(t, self.rate, 1, cueStart, cueDur);
-            }
-            self.sf.bufferSourceNode.onended = function(e) {
-              self.playing = false;
-              self.$.start.src = self.rootfolder + "icons/play.png";
-            };
-            window.setTimeout(function() {
-              self.playing = true;
-              self.$.start.src = self.rootfolder + "icons/stop.png";
-            }, 10);
-          } catch(e) {
-            throw e;
+</dom-module>
+<script>
+  (function (params) {
+    Polymer({
+      is: 'olos-soundfile',
+      properties: {
+        _bufferNames: {
+          type: Array,
+          value: function() {
+            return [];
           }
         },
-
-        stop: function(timeFromNow) {
-          var t = timeFromNow || 0;
-          try {
-            this.sf.stop(t);
-          } catch(e) {
-            throw 'already stopped';
-          }
-          this.$.start.src = this.rootfolder + "icons/play.png";
+        testArray: {
+          type: Array,
+          value: ['beck', 'test']
         },
-
-        _toggleStart: function() {
-          if(!this.playing) {
-            this.start();
-          }
-          else {
-            this.stop();
-          }
-          this.playing = !this.playing;
-        },
-
-        // publicly editable
-        setupRateSlider: function() {
-          this.slider.min = 0;
-          this.slider.max = 3;
-          this.slider.step = 0.001;
-          this.slider.value = 1;
-        },
-
-        // TO DO
-        rateParamChanged: function() {
-          // to do
-        },
-
-        rateValueChanged: function() {
-          this.rate = this.rateValue > 0 ? this.rateValue : 0.000001;
-          this.rateToPitch();
-        },
-
-        // pitchValueChanged: function() {
-        //   this.pitch = 
-        // },
-
-        // Handle File Loading
-
-        _handleFileSelect: function(e, s) {
-          var self = s;
-          var file = e.path[0].files[0];
-
-          if (file && file.type && file.type.indexOf('audio') === -1) {
-            console.log('Error: not a valid audio file');
-            return;
-          }
-
-          self.reader = new FileReader();
-
-          self.reader.onload = function(b) {
-            // set SRC
-            var path = file.name;
-            var chunks = path.split('/');
-            self.src = chunks[chunks.length - 1];
-
-            self._loadSoundSuccess(b);
-          };
-
-          self.reader.onerror = function(e) {
-            self._loadSoundError(e);
-          }
-
-          // self.reader.addEventListener('onerror', );
-          self.reader.readAsArrayBuffer(file);
-        },
-
-        _loadSoundSuccess: function(s) {
-          var self = this;
-          var arrayBuffer = s.target.result;
-          self._decodeArrayBuffer(arrayBuffer);
-
-          // Remove event listeners and clear the FileReader.
-          try{
-            self.reader.removeEventListener('load', self._loadSoundSuccess);
-            self.reader.removeEventListener('error', self._loadSoundError);
-            self.reader = undefined;
-          } catch(e){console.log('error removing methods')};
-        },
-
-        _loadSoundError: function(e) {
-          console.log('Error decoding audio: ' + e.message);
-
-          // Remove event listeners and clear the FileReader.
-          try{
-            self.reader.removeEventListener('load', self._loadSoundSuccess);
-            self.reader.removeEventListener('error', self._loadSoundError);
-            self.reader = undefined;
-          } catch(e){};
-        },
-
-        _decodeArrayBuffer: function(arrayBuffer) {
-          var self = this;
-
-          audioContext.decodeAudioData(arrayBuffer,
-            function(audioBuffer) {
-              self.buffer = audioBuffer;
-              self.buffers[self.src] = audioBuffer;
-
-              console.log('Success loading audio buffer');
-            },
-            function(error) {
-              console.log('Error decoding audio: ' + error.message);
-            }
-          );
-        },
-
-        // Canvas
-        _initCanvas: function() {
-          var self = this;
-
-          // sketch attributes
-          var sk = function( sketch ) {
-
-            sketch.setup = function() {
-              var waveformDiv = self.$.waveform;
-              var w = self.width;
-              var h = self.height;
-              var cnv = sketch.createCanvas(w, h);
-              waveformDiv.appendChild(cnv.elt);
-              cnv.canvas.style.setProperty('width', '100%');
-              cnv.canvas.style.setProperty('height', '30%');
-              sketch.noLoop();
-            };
-
-            sketch.draw = function() {
-              // sketch.background(94,33,33);
-              sketch.background(39,39,39);
-              if (self.sf.buffer) {
-                sketch.plotPeaks(self.sf.buffer);
-                sketch.drawCursor();
-
-                if (self._dragPoints.length === 2) {
-                  sketch.drawSelection();
-                }
-
-              }
-            };
-
-            sketch.plotPeaks = function(buffer) {
-              var stereoPeaks = self._computeWaveformPeaks(buffer, self.width*2);
-              var waveform = stereoPeaks[0];
-              sketch.fill(255,180,120);
-              sketch.noStroke();
-              sketch.beginShape();
-              for (var i = 0; i< waveform.length; i++){
-                sketch.vertex(sketch.map(i, 0, waveform.length, 0, sketch.width), sketch.map(waveform[i], -1, 1, sketch.height, 0));
-              }
-              sketch.endShape();
-            };
-
-            sketch.drawCursor = function() {
-              var lastPos = self.sf.currentTime();
-              var percent = lastPos/self.sf.duration();
-              var xPos = percent * sketch.width;
-              sketch.strokeWeight(2);
-              sketch.stroke(0,255,0);
-              sketch.line(xPos, 0, xPos, sketch.height);
-            }
-
-            sketch.drawSelection = function() {
-              sketch.fill(200,200,150, 50);
-              sketch.noStroke();
-              var minPoint = Math.min.apply(null, self._dragPoints) * sketch.width;
-              var maxPoint = Math.max.apply(null, self._dragPoints) * sketch.width;
-              sketch.rect(minPoint, 0, maxPoint - minPoint, sketch.height );
-            }
-
-          };
-
-          self._p5 = new p5(sk, 'waveform');
-        },
-
-        _draw: function() {
-          this._p5.draw();
-        },
-
-        clickInput: function() {
-          this.$.sfInput.click();
-        },
-
-
-        // mouse interaction
-        mouseUp: function(e) {
-          var self = this;
-
-          if (self._dragging) {
-            self._dragging = false;
-
-            var minPercent = Math.min.apply(null, self._dragPoints);
-            var maxPercent = Math.max.apply(null, self._dragPoints);
-            self.cueStart = minPercent * self.buffer.duration;
-            self.cueDur = maxPercent * self.buffer.duration - self.cueStart;
-
-            if (this.playing) {
-              this.start();
-            } 
-            // if there is no second drag point, and we're not playing, then the click should reset cue point to 0
-            else if (!self._dragPoints[1]){
-              self.cueStart = 0;
-            }
-
-          }
-
-        },
-
-        mouseDn: function(e) {
-          this._dragging = true;
-
-          // clear dragPoints and reset
-          this._dragPoints = [];
-          this._dragPoints[0] = this._p5.mouseX / this._p5.width;
-
-          this.cueStart = this._dragPoints[0] * this.buffer.duration;
-          this.cueDur = null;
-
-        },
-
-        mouseDrag: function(e) {
-          if (this._dragging) {
-            this._dragPoints[1] = this._p5.mouseX / this._p5.width;
+        _dragPoints: {
+          type: Array,
+          value: function () {
+            return [];
           }
         },
-
-        // dispose
-        dispose: function() {
-          var self = this;
-
-          // remove audio elements
-          if (self.sf) {
-            // try {
-            for (var i = 0; i < p5.soundOut.soundArray.length; i++) {
-              if (p5.soundOut.soundArray[i] == self.sf) {
-
-                // TO DO: make sure this works in p5.sound instance mode
-                p5.soundOut.soundArray[i].input = null;
-                p5.soundOut.soundArray.splice(i, 1);
-              }
-            }
-
-            self.sf.dispose();
-            console.log('dispose');
-          }
-
-
-          // remove p5 sketch
-          if (self._p5) {
-            self._p5.remove();
-            self._p5 = null;
-          }
-
-          // var nodes = ['sf'];
-          // for (var i = 0; i < nodes.length; i++) {
-          //   try {
-          //     var node = self[nodes[i]];
-          //     node.disconnect();
-          //     node = null;
-          //   } catch(e) { }
-          // }
+        _dragging: {
+          type: Boolean,
+          value: false
         },
-
-        resize: function() {
-          // TO DO: reset p5 width and height
-          var self = this;
-          if (self.$.controls.hidden) {
-            var ctrlHeight = 0;
-            var padding = 2.5;
-          } else {
-            var ctrlHeight = self.$.controls.style.height.split('px')[0];
-            var padding = 5;
-          }
-          var waveformDiv = self.$.waveform;
-          var w = waveformDiv.offsetWidth - padding;
-          var h = waveformDiv.offsetHeight - ctrlHeight - padding;
-          self._p5.resizeCanvas(w, h);
+        buffer: {
+          type: Object,
+          value: null,
+          observer: 'bufferChanged'
         },
-
-        /**
-         *  returns multichannel array of peak data
-         */
-        _computeWaveformPeaks: function(buffer, length) {
-          var self = this;
-
-          if (buffer) {
-            // set length to window's width if no length is provided
-            if (!length) {
-              length = 300;
-            }
-
-            if (typeof(buffer) !== 'undefined') {
-              var sampleSize = buffer.length / length;
-              var sampleStep = ~~(sampleSize) || 1;
-              var channels = 1; // only one channel for now // buffer.numberOfChannels;
-              var peaks = [];
-              for (var c = 0; c < channels; c++) {
-                peaks[c] = new Float32Array(Math.round(length));
-                var chan = buffer.getChannelData(c);
-                for (var i = 0; i < length; i++) {
-                  var start = ~~(i * sampleSize);
-                  var end = ~~(start + sampleSize);
-                  var max = 0;
-                  for (var j = start; j < end; j += sampleStep) {
-                    var value = chan[j];
-                    if (Math.abs(value) > max) {
-                      max = value;
-                    }
-                  }
-                  if (c === 0 ||  Math.abs(max) > peaks[c][i]) {
-                    peaks[c][i] = max;
-                  }
-                }
-              }
-              return peaks;
-            }
-          } else {
-            throw 'Cannot load peaks yet, buffer is not loaded';
+        buffers: {
+          type: Object,
+          value: function () {
+            return {};
+          },
+          observer: 'buffersChanged'
+        },
+        color: { notify: true },
+        cueDur: { value: null },
+        cueStart: { value: null },
+        height: {
+          type: Number,
+          value: 60,
+          notify: true
+        },
+        lastPos: {
+          type: Number,
+          value: 0
+        },
+        looping: {
+          type: Boolean,
+          value: false
+        },
+        output: {
+          value: null,
+          notify: true
+        },
+        paths: {
+          type: Array,
+          value: function () {
+            return [
+              '../_audio/whistle.mp3',
+              '../_audio/flute.mp3',
+              '../_audio/tom_01.mp3',
+              '../_audio/triangle_01.mp3',
+              '../_audio/triangle_03.mp3',
+              '../_audio/707/Snare-707.mp3',
+              '../_audio/707/Kick-707.mp3',
+              '../_audio/marimba/C3.mp3',
+              '../_audio/marimba/C3.mp3',
+              '../_audio/design/json1.mp3',
+              '../_audio/design/json2.mp3'
+            ];
+          },
+          notify: true
+        },
+        pitch: { observer: 'pitchChanged' },
+        pitchValue: { observer: 'pitchValueChanged' },
+        playing: {
+          type: Boolean,
+          value: false
+        },
+        publicMethods: {
+          type: Array,
+          value: function () {
+            return [
+              'settings',
+              'setupRateSlider'
+            ];
           }
         },
-
-        // freqToPitch: function() {
-        //   return olos.piano.pitchToPlaybackRate(48)
-        // },
-
-        pitchChanged: function() {
-          var rate = this.pitchToRate(this.pitch);
-          if (Number(this.rate).toFixed(3) != rate.toFixed(3)) {
-            this.rateValue = rate;
-          }
+        rateParam: {
+          type: Array,
+          value: function () {
+            return [];
+          },
+          notify: true,
+          observer: 'rateParamChanged'
         },
-
-        pitchValueChanged: function() {
-          var rate = this.pitchToRate(this.pitch);
-          this.rateValue = rate;
+        rateValue: { observer: 'rateValueChanged' },
+        rootfolder: {
+          type: String,
+          value: '../olos-soundfile/'
         },
-
-        pitchToRate: function(pitch) {
-          return olos.piano.pitchToPlaybackRate(olos.piano.root + pitch);
-        },
-
-        rateToPitch: function() {
-          this.pitch = Math.round( this.freqToMidi(this.rate * 440) );
-        },
-
-        freqToMidi: function(freq) {
-          return 12*Math.log2(freq/440); // + 69;
-        },
-
-        /**
-         *  reverse the audio buffer
-         *
-         *  @method reverseBuffer
-         */
-        reverseBuffer: function() {
-          var self = this;
-
-          self.sf.reverseBuffer();
-          self.sf.reversed = false;
-        },
-
-        toggleBuffer: function(e, item, selected) {
-          var bufName = selected.innerHTML;
-          var buffer = this.buffers[bufName];
-          // console.log(buffer);
-          this.buffer = buffer;
-        },
-
-        _loadBuffer: function (path, callback) {
-
-          var request = new XMLHttpRequest();
-          request.open('GET', path, true);
-          request.responseType = 'arraybuffer';
-
-          // decode asyncrohonously
-          var self = this;
-          request.onload = function () {
-            audioContext.decodeAudioData(request.response, function (buff) {
-              var buffer = buff;
-              var chunks = path.split('/');
-              buffer.name = chunks[chunks.length - 1];
-              if (callback) {
-                callback(buffer);
-              }
-            });
-          };
-          request.send();
-        },
-
-        buffersChanged: function() {
-          this._bufferNames = Object.keys(this.buffers);
-        },
-
-        bufferChanged: function() {
-          this.sf.buffer = this.buffer;
+        sf: { value: null },
+        src: {
+          type: String,
+          value: '../_audio/beatbox.mp3',
+          notify: true
+        }
+      },
+      /**
+       *  p5 sketch associated with this element
+       */
+      _p5: undefined,
+      ready: function () {
+        var self = this;
+        console.log('ready!');
+        self.sf = new p5.SoundFile();
+        if (self.src) {
+          self.sf.url = self.rootfolder + self.src;
+          self.sf.load();
         }
 
-      });
+        // preload all the paths
+        for (var i = 0; i < self.paths.length; i++) {
+          self._loadBuffer(self.paths[i], function (buf) {
+            self.buffers[buf.name] = buf;
+          });
+        }
+        self.sf.disconnect();
+        self.sf.playMode('restart');
+        self.slider = this.$.rateSlider;
+        self.setupRateSlider();
 
-    })();
-  </script>
+        // event listener for uploading files
+        self.$.sfInput.onchange = function (e) {
+          self._handleFileSelect(e, self);
+        };
+        self._initCanvas();
 
-</polymer-element>
+        Object.defineProperty(self, 'position', {
+          'get': function () {
+            return self.sf.currentTime();
+          },
+          'set': function (val) {
+            self.sf.jump(val);
+          }
+        });
+        Object.defineProperty(self, 'buffer', {
+          'get': function () {
+            return self.sf.buffer;
+          },
+          'set': function (val) {
+            self.sf.buffer = val;
+          }
+        });
+        /**
+         *  Pitch. Related to playback rate,
+         *  assuming that 0 pitchshift is a playback rate of 1.
+         *  
+         *  @property pitch
+         *  @type Number
+         *  @default 0
+         */
+        self.pitch = 0;
+        self.rate = 1;
+        self.rateValue = 1;
+        /**
+         *  Playback rate. Related to pitch
+         *  
+         *  @property rate
+         *  @type Number
+         *  @default 1
+         */
+        Object.defineProperty(self, 'rate', {
+          'get': function () {
+            return self.sf.playbackRate;
+          },
+          'set': function (val) {
+            self.sf.rate(val);
+          }
+        });
+        self.output = self.sf.output;
+      },
+      settings: function () {
+        this.looping = false;
+      },
+      /**
+       * Start soundfile
+       */
+      start: function (timeFromNow) {
+        var self = this;
+        var t = timeFromNow || 0;
+        var cueStart = this.cueStart > 0 ? this.cueStart : 0;
+        var cueDur = this.cueDur || null;  // envelope if cueStart
+        // envelope if cueStart
+        // console.log(cueStart)
+        if (cueStart) {
+          var val = this.output.gain.value;
+          this.output.gain.cancelScheduledValues(audioContext.currentTime + t);
+          this.output.gain.setValueAtTime(val, audioContext.currentTime + t + 0.0001);
+          this.output.gain.linearRampToValueAtTime(0, audioContext.currentTime + t + 2);
+          this.output.gain.linearRampToValueAtTime(1, audioContext.currentTime + t + 0.2);
+          if (cueDur) {
+            this.output.gain.linearRampToValueAtTime(0, audioContext.currentTime + t + this.cueDur - 0.2);
+          }
+        } else {
+          this.output.gain.linearRampToValueAtTime(1, audioContext.currentTime + t);
+        }
+        try {
+          if (self.looping) {
+            self.sf.loop(t, self.rate, 1, cueStart, cueDur);
+          } else {
+            self.sf.play(t, self.rate, 1, cueStart, cueDur);
+          }
+          self.sf.bufferSourceNode.onended = function (e) {
+            self.playing = false;
+            self.$.start.src = self.rootfolder + 'icons/play.png';
+          };
+          window.setTimeout(function () {
+            self.playing = true;
+            self.$.start.src = self.rootfolder + 'icons/stop.png';
+          }, 10);
+        } catch (e) {
+          throw e;
+        }
+      },
+      stop: function (timeFromNow) {
+        var t = timeFromNow || 0;
+        try {
+          this.sf.stop(t);
+        } catch (e) {
+          throw 'already stopped';
+        }
+        this.$.start.src = this.rootfolder + 'icons/play.png';
+      },
+      _toggleStart: function () {
+        if (!this.playing) {
+          this.start();
+        } else {
+          this.stop();
+        }
+        this.playing = !this.playing;
+      },
+      // publicly editable
+      setupRateSlider: function () {
+        this.slider.min = 0;
+        this.slider.max = 3;
+        this.slider.step = 0.001;
+        this.slider.value = 1;
+      },
+      // TO DO
+      rateParamChanged: function () {
+      },
+      // to do
+      rateValueChanged: function () {
+        console.log('rate value changed');
+        this.rate = this.rateValue > 0 ? this.rateValue : 0.000001;
+        this.rateToPitch();
+      },
+      // pitchValueChanged: function() {
+      //   this.pitch = 
+      // },
+      // Handle File Loading
+      _handleFileSelect: function (e, s) {
+        var self = s;
+        var file = e.path[0].files[0];
+        if (file && file.type && file.type.indexOf('audio') === -1) {
+          console.log('Error: not a valid audio file');
+          return;
+        }
+        self.reader = new FileReader();
+        self.reader.onload = function (b) {
+          // set SRC
+          var path = file.name;
+          var chunks = path.split('/');
+          self.src = chunks[chunks.length - 1];
+          self._loadSoundSuccess(b);
+        };
+        self.reader.onerror = function (e) {
+          self._loadSoundError(e);
+        };
+        // self.reader.addEventListener('onerror', );
+        self.reader.readAsArrayBuffer(file);
+      },
+      _loadSoundSuccess: function (s) {
+        var self = this;
+        var arrayBuffer = s.target.result;
+        self._decodeArrayBuffer(arrayBuffer);  // Remove event listeners and clear the FileReader.
+        // Remove event listeners and clear the FileReader.
+        try {
+          self.reader.removeEventListener('load', self._loadSoundSuccess);
+          self.reader.removeEventListener('error', self._loadSoundError);
+          self.reader = undefined;
+        } catch (e) {
+          console.log('error removing methods');
+        }
+        ;
+      },
+      _loadSoundError: function (e) {
+        console.log('Error decoding audio: ' + e.message);  // Remove event listeners and clear the FileReader.
+        // Remove event listeners and clear the FileReader.
+        try {
+          self.reader.removeEventListener('load', self._loadSoundSuccess);
+          self.reader.removeEventListener('error', self._loadSoundError);
+          self.reader = undefined;
+        } catch (e) {};
+      },
+      _decodeArrayBuffer: function (arrayBuffer) {
+        var self = this;
+        audioContext.decodeAudioData(arrayBuffer, function (audioBuffer) {
+          self.buffer = audioBuffer;
+          self.buffers[self.src] = audioBuffer;
+          console.log('Success loading audio buffer');
+        }, function (error) {
+          console.log('Error decoding audio: ' + error.message);
+        });
+      },
+      // Canvas
+      _initCanvas: function () {
+        var self = this;  // sketch attributes
+        // sketch attributes
+        var sk = function (sketch) {
+          sketch.setup = function () {
+            var waveformDiv = self.$.waveform;
+            var w = self.style.width.indexOf('px') > -1 ? Number(self.style.width.split('px')[0]) : 300;
+            var h = self.style.height.indexOf('px') > -1 ? Number(self.style.height.split('px')[0]) : 300;
+            var cnv = sketch.createCanvas(w, h);
+            waveformDiv.appendChild(cnv.elt);
+            cnv.canvas.style.setProperty('width', '100%');
+            cnv.canvas.style.setProperty('height', '100%');
+            sketch.noLoop();
+          };
+          sketch.draw = function () {
+            // sketch.background(94,33,33);
+            sketch.background(39, 39, 39);
+            if (self.sf.buffer) {
+              sketch.plotPeaks(self.sf.buffer);
+              sketch.drawCursor();
+              if (self._dragPoints.length === 2) {
+                sketch.drawSelection();
+              }
+            }
+          };
+          sketch.plotPeaks = function (buffer) {
+            var stereoPeaks = self._computeWaveformPeaks(buffer, self.width * 2);
+            var waveform = stereoPeaks[0];
+            sketch.fill(255, 180, 120);
+            sketch.noStroke();
+            sketch.beginShape();
+            for (var i = 0; i < waveform.length; i++) {
+              sketch.vertex(sketch.map(i, 0, waveform.length, 0, sketch.width), sketch.map(waveform[i], -1, 1, sketch.height, 0));
+            }
+            sketch.endShape();
+          };
+          sketch.drawCursor = function () {
+            var lastPos = self.sf.currentTime();
+            var percent = lastPos / self.sf.duration();
+            var xPos = percent * sketch.width;
+            sketch.strokeWeight(2);
+            sketch.stroke(0, 255, 0);
+            sketch.line(xPos, 0, xPos, sketch.height);
+          };
+          sketch.drawSelection = function () {
+            sketch.fill(200, 200, 150, 50);
+            sketch.noStroke();
+            var minPoint = Math.min.apply(null, self._dragPoints) * sketch.width;
+            var maxPoint = Math.max.apply(null, self._dragPoints) * sketch.width;
+            sketch.rect(minPoint, 0, maxPoint - minPoint, sketch.height);
+          };
+        };
+        self._p5 = new p5(sk, 'waveform');
+      },
+      _draw: function () {
+        this._p5.draw();
+      },
+      clickInput: function () {
+        this.$.sfInput.click();
+      },
+      // mouse interaction
+      mouseUp: function (e) {
+        var self = this;
+        if (self._dragging) {
+          self._dragging = false;
+          var minPercent = Math.min.apply(null, self._dragPoints);
+          var maxPercent = Math.max.apply(null, self._dragPoints);
+          self.cueStart = minPercent * self.buffer.duration;
+          self.cueDur = maxPercent * self.buffer.duration - self.cueStart;
+          if (this.playing) {
+            this.start();
+          }
+          else // if there is no second drag point, and we're not playing, then the click should reset cue point to 0
+          if (!self._dragPoints[1]) {
+            self.cueStart = 0;
+          }
+        }
+      },
+      mouseDn: function (e) {
+        this._dragging = true;
+        // clear dragPoints and reset
+        this._dragPoints = [];
+        this._dragPoints[0] = this._p5.mouseX / this._p5.width;
+        this.cueStart = this._dragPoints[0] * this.buffer.duration;
+        this.cueDur = null;
+      },
+      mouseDrag: function (e) {
+        if (this._dragging) {
+          this._dragPoints[1] = this._p5.mouseX / this._p5.width;
+        }
+      },
+      // dispose
+      dispose: function () {
+        var self = this;  // remove audio elements
+        // remove audio elements
+        if (self.sf) {
+          // try {
+          for (var i = 0; i < p5.soundOut.soundArray.length; i++) {
+            if (p5.soundOut.soundArray[i] == self.sf) {
+              // TO DO: make sure this works in p5.sound instance mode
+              p5.soundOut.soundArray[i].input = null;
+              p5.soundOut.soundArray.splice(i, 1);
+            }
+          }
+          self.sf.dispose();
+          console.log('dispose');
+        }
+        // remove p5 sketch
+        if (self._p5) {
+          self._p5.remove();
+          self._p5 = null;
+        }
+      },
+      // var nodes = ['sf'];
+      // for (var i = 0; i < nodes.length; i++) {
+      //   try {
+      //     var node = self[nodes[i]];
+      //     node.disconnect();
+      //     node = null;
+      //   } catch(e) { }
+      // }
+      resize: function () {
+        // TO DO: reset p5 width and height
+        var self = this;
+        if (self.$.controls.hidden) {
+          var ctrlHeight = 0;
+          var padding = 2.5;
+        } else {
+          var ctrlHeight = self.$.controls.style.height.split('px')[0];
+          var padding = 5;
+        }
+        var waveformDiv = self.$.waveform;
+        var w = waveformDiv.offsetWidth - padding;
+        var h = waveformDiv.offsetHeight - ctrlHeight - padding;
+        self._p5.resizeCanvas(w, h);
+      },
+      /**
+       *  returns multichannel array of peak data
+       */
+      _computeWaveformPeaks: function (buffer, length) {
+        var self = this;
+        if (buffer) {
+          // set length to window's width if no length is provided
+          if (!length) {
+            length = 300;
+          }
+          if (typeof buffer !== 'undefined') {
+            var sampleSize = buffer.length / length;
+            var sampleStep = ~~sampleSize || 1;
+            var channels = 1;  // only one channel for now // buffer.numberOfChannels;
+            // only one channel for now // buffer.numberOfChannels;
+            var peaks = [];
+            for (var c = 0; c < channels; c++) {
+              peaks[c] = new Float32Array(Math.round(length));
+              var chan = buffer.getChannelData(c);
+              for (var i = 0; i < length; i++) {
+                var start = ~~(i * sampleSize);
+                var end = ~~(start + sampleSize);
+                var max = 0;
+                for (var j = start; j < end; j += sampleStep) {
+                  var value = chan[j];
+                  if (Math.abs(value) > max) {
+                    max = value;
+                  }
+                }
+                if (c === 0 || Math.abs(max) > peaks[c][i]) {
+                  peaks[c][i] = max;
+                }
+              }
+            }
+            return peaks;
+          }
+        } else {
+          throw 'Cannot load peaks yet, buffer is not loaded';
+        }
+      },
+      // freqToPitch: function() {
+      //   return olos.piano.pitchToPlaybackRate(48)
+      // },
+      pitchChanged: function () {
+        var rate = this.pitchToRate(this.pitch);
+        if (Number(this.rate).toFixed(3) != rate.toFixed(3)) {
+          this.rateValue = rate;
+        }
+      },
+      pitchValueChanged: function () {
+        var rate = this.pitchToRate(this.pitch);
+        this.rateValue = rate;
+      },
+      pitchToRate: function (pitch) {
+        console.log('p to r: ' + pitch);
+        // return olos.helpers.pitchToPlaybackRate(olos.piano.root + pitch);
+        return this.$.olos_helpers.pitchToPlaybackRate(69 + pitch);
+      },
+      rateToPitch: function () {
+        this.pitch = Math.round(this.freqToMidi(this.rate * 440));
+      },
+      freqToMidi: function (freq) {
+        return 12 * Math.log2(freq / 440);  // + 69;
+      },
+
+      /**
+       *  reverse the audio buffer
+       *
+       *  @method reverseBuffer
+       */
+      reverseBuffer: function () {
+        var self = this;
+        self.sf.reverseBuffer();
+        self.sf.reversed = false;
+      },
+      toggleBuffer: function (e) {
+        var selected = e.target;
+        var bufName = selected.innerText;
+        var buffer = this.buffers[bufName];
+        this.buffer = buffer;
+      },
+      _loadBuffer: function (path, callback) {
+        var request = new XMLHttpRequest();
+        request.open('GET', path, true);
+        request.responseType = 'arraybuffer';
+        // decode asyncrohonously
+        var self = this;
+        request.onload = function () {
+          audioContext.decodeAudioData(request.response, function (buff) {
+            var buffer = buff;
+            var chunks = path.split('/');
+            buffer.name = chunks[chunks.length - 1];
+            if (callback) {
+              callback(buffer);
+            }
+          });
+        };
+        request.send();
+      },
+      buffersChanged: function () {
+        this._bufferNames = Object.keys(this.buffers);
+        this.$.buf_dropdown.render();
+      },
+      bufferChanged: function () {
+        if (this.sf) {
+          this.sf.buffer = this.buffer;
+        }
+      },
+      /**
+       *  connect to master output a la tone.js
+       */
+      toMaster: function() {
+        this.sf.connect();
+      }
+    });
+  }());
+</script>
