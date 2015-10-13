@@ -34,7 +34,7 @@ olos-soundfile
     }
   </style>
   <link rel="import" type="css" href="olos-soundfile.css">
-  <template is="auto-binding">
+  <template>
 
     <olos-helpers id="olos_helpers"></olos-helpers>
 
@@ -58,11 +58,16 @@ olos-soundfile
       </paper-dropdown-menu>
 
         <label>Semitones: </label>
-        <input type="number" is="iron-input" id="pitch" min="-36" max="36" step="1" value="{{pitch::input}}" committedvalue="{{pitchValue}}" style="width:40px">
-
+        <input type="number" is="iron-input" id="pitch" min="-36" max="36" step="1" value="{{semitones::input}}" bind-value="computedSemitones" style="width:40px">
         <label>Rate: </label>
-        <input is="iron-input" type="number" label="playback rate (percent)" pin="true" id="rateSlider" min="0.01" max="3" value="{{rateValue::input}}" committedvalue="{{rateValue}}" style="width: 40px">
+        <input is="iron-input" type="number" label="playback rate (percent)" pin="true" id="rateSlider" min="0.01" max="3" value="{{playbackRate::input}}" bind-value="{{computedPlaybackRate}}" style="width: 40px">
 
+
+<!--         <input type="number" is="iron-input" id="pitch" min="-36" max="36" step="1" value="{{pitch::input}}" committedvalue="{{pitchValue}}" style="width:40px">
+ -->
+<!--         <label>Rate: </label>
+        <input is="iron-input" type="number" label="playback rate (percent)" pin="true" id="rateSlider" min="0.01" max="3" value="{{rateValue::input}}" committedvalue="{{rateValue}}" style="width: 40px">
+ -->
         <input is="paper-input" type="file" hidden="" id="sfInput">
     </div>
 <!--       <paper-dropdown-menu label="Buffer Source">
@@ -89,6 +94,29 @@ olos-soundfile
             return [];
           }
         },
+
+
+        // actual playback rate
+        playbackRate: {
+          type: Number,
+          value: 1
+        },
+        computedPlaybackRate: {
+          type: Number,
+          computed: 'getRate(semitones)'
+        },
+        computedSemitones: {
+          type: Number,
+          computed: 'rateToSemitones(playbackRate)'
+        },
+        semitones: {
+          type: Number,
+          value: 0,
+          observer: 'semitonesChanged'
+        },
+
+
+
         testArray: {
           type: Array,
           value: ['beck', 'test']
@@ -589,11 +617,28 @@ olos-soundfile
       },
       pitchToRate: function (pitch) {
         console.log('p to r: ' + pitch);
-        // return olos.helpers.pitchToPlaybackRate(olos.piano.root + pitch);
-        return this.$.olos_helpers.pitchToPlaybackRate(69 + pitch);
+        return this.$.olos_helpers.pitchToPlaybackRate(pitch);
       },
-      rateToPitch: function () {
-        this.pitch = Math.round(this.freqToMidi(this.rate * 440));
+      // TO DO: remove this
+      rateToPitch: function (rate) {
+        return Math.round(this.freqToMidi(rate * 440));
+      },
+      // replaces rateToPitch:
+      rateToSemitones: function (rate) {
+        this.playbackRate = Number(rate);
+        this.semitones = this.computedSemitones;
+
+        if (rate <= 0) {
+          return 1;
+          console.log( 'Error: Rate cannot be <= zero at the moment');
+        }
+        return Math.round(this.freqToMidi(rate * 440));
+      },
+      getRate: function(semitones) {
+        this.semitones = Number(semitones);
+        var pbr = this.pitchToRate(semitones);
+        console.log('pbr: ' + pbr);
+        return pbr;
       },
       freqToMidi: function (freq) {
         return 12 * Math.log2(freq / 440);  // + 69;
@@ -647,6 +692,12 @@ olos-soundfile
        */
       toMaster: function() {
         this.sf.connect();
+      },
+      semitonesChanged: function() {
+        console.log('semis changed');
+      },
+      computeNumber: function(str) {
+        return Number(str);
       }
     });
   }());
