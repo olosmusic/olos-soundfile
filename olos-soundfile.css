@@ -1,9 +1,10 @@
 :host {
   display: block;
-  color: green;
+  color: #FF7FFE;
   /*font-family: 'RobotoDraft', sans-serif;*/
   font-size:10.5px;
   padding:0px;
+  overflow:visible;
 }
 
 #container {
@@ -19,4 +20,8 @@
 .thing {
   box-shadow: 1px 1px 1px #888888;
   box-shadow: 10px 10px 5px #888888;
+}
+
+canvas {
+  visibility:visible !important;
 }

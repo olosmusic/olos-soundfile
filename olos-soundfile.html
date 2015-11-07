@@ -29,9 +29,9 @@ olos-soundfile
     /* TODO(polyup): For speed, consider reworking these styles with .classes
                      and #ids rather than [attributes].
     */
-    [hidden] {
+/*    [hidden] {
       display: none !important;
-    }
+    }*/
   </style>
   <link rel="import" type="css" href="olos-soundfile.css">
   <template>
@@ -167,23 +167,21 @@ olos-soundfile
           type: Array,
           value: function () {
             return [
-              '../_audio/whistle.mp3',
-              '../_audio/flute.mp3',
-              '../_audio/tom_01.mp3',
-              '../_audio/triangle_01.mp3',
-              '../_audio/triangle_03.mp3',
-              '../_audio/707/Snare-707.mp3',
-              '../_audio/707/Kick-707.mp3',
-              '../_audio/marimba/C3.mp3',
-              '../_audio/marimba/C3.mp3',
-              '../_audio/design/json1.mp3',
-              '../_audio/design/json2.mp3'
+              this.resolveUrl('../_audio/whistle.mp3'),
+              this.resolveUrl('../_audio/flute.mp3'),
+              this.resolveUrl('../_audio/tom_01.mp3'),
+              this.resolveUrl('../_audio/triangle_01.mp3'),
+              this.resolveUrl('../_audio/triangle_03.mp3'),
+              this.resolveUrl('../_audio/707/Snare-707.mp3'),
+              this.resolveUrl('../_audio/707/Kick-707.mp3'),
+              this.resolveUrl('../_audio/marimba/C3.mp3'),
+              this.resolveUrl('../_audio/marimba/C3.mp3'),
+              this.resolveUrl('../_audio/design/json1.mp3'),
+              this.resolveUrl('../_audio/design/json2.mp3')
             ];
           },
           notify: true
         },
-        pitch: { observer: 'pitchChanged' },
-        pitchValue: { observer: 'pitchValueChanged' },
         playing: {
           type: Boolean,
           value: false
@@ -205,15 +203,17 @@ olos-soundfile
           notify: true,
           observer: 'rateParamChanged'
         },
-        rateValue: { observer: 'rateValueChanged' },
+
+        // do not use, use this.resolveUrl instead
         rootfolder: {
           type: String,
           value: '../olos-soundfile/'
         },
+
         sf: { value: null },
         src: {
           type: String,
-          value: '../_audio/beatbox.mp3',
+          value: '',
           notify: true
         }
       },
@@ -223,10 +223,13 @@ olos-soundfile
       _p5: undefined,
       ready: function () {
         var self = this;
-        console.log('ready!');
+
+        this.rootfolder = this.resolveUrl('../olos-soundfile/');
+        this.src = this.resolveUrl('../_audio/beatbox.mp3');
+
         self.sf = new p5.SoundFile();
         if (self.src) {
-          self.sf.url = self.rootfolder + self.src;
+          self.sf.url = self.src;
           self.sf.load();
         }
 
@@ -271,9 +274,9 @@ olos-soundfile
          *  @type Number
          *  @default 0
          */
-        self.pitch = 0;
-        self.rate = 1;
-        self.rateValue = 1;
+
+        // self.rate = 1;
+        // self.rateValue = 1;
         /**
          *  Playback rate. Related to pitch
          *  
@@ -281,7 +284,7 @@ olos-soundfile
          *  @type Number
          *  @default 1
          */
-        Object.defineProperty(self, 'rate', {
+        Object.defineProperty(self, 'playbackRate', {
           'get': function () {
             return self.sf.playbackRate;
           },
@@ -318,9 +321,9 @@ olos-soundfile
         }
         try {
           if (self.looping) {
-            self.sf.loop(t, self.rate, 1, cueStart, cueDur);
+            self.sf.loop(t, self.computedPlaybackRate, 1, cueStart, cueDur);
           } else {
-            self.sf.play(t, self.rate, 1, cueStart, cueDur);
+            self.sf.play(t, self.computedPlaybackRate, 1, cueStart, cueDur);
           }
           self.sf.bufferSourceNode.onended = function (e) {
             self.playing = false;
@@ -361,15 +364,14 @@ olos-soundfile
       // TO DO
       rateParamChanged: function () {
       },
-      // to do
-      rateValueChanged: function () {
-        console.log('rate value changed');
-        this.rate = this.rateValue > 0 ? this.rateValue : 0.000001;
-        this.rateToPitch();
-      },
-      // pitchValueChanged: function() {
-      //   this.pitch = 
+
+      // // to do
+      // rateValueChanged: function () {
+      //   console.log('rate value changed');
+      //   this.rate = this.rateValue > 0 ? this.rateValue : 0.000001;
+      //   this.rateToPitch();
       // },
+
       // Handle File Loading
       _handleFileSelect: function (e, s) {
         var self = s;
@@ -602,19 +604,7 @@ olos-soundfile
           throw 'Cannot load peaks yet, buffer is not loaded';
         }
       },
-      // freqToPitch: function() {
-      //   return olos.piano.pitchToPlaybackRate(48)
-      // },
-      pitchChanged: function () {
-        var rate = this.pitchToRate(this.pitch);
-        if (Number(this.rate).toFixed(3) != rate.toFixed(3)) {
-          this.rateValue = rate;
-        }
-      },
-      pitchValueChanged: function () {
-        var rate = this.pitchToRate(this.pitch);
-        this.rateValue = rate;
-      },
+
       pitchToRate: function (pitch) {
         console.log('p to r: ' + pitch);
         return this.$.olos_helpers.pitchToPlaybackRate(pitch);
@@ -667,6 +657,7 @@ olos-soundfile
         // decode asyncrohonously
         var self = this;
         request.onload = function () {
+          console.log('loaded buffer');
           audioContext.decodeAudioData(request.response, function (buff) {
             var buffer = buff;
             var chunks = path.split('/');
