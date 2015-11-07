@@ -38,29 +38,37 @@ olos-soundfile
 
     <olos-helpers id="olos_helpers"></olos-helpers>
 
-    <div id="container" style="width:100%;height:100%;">
+    <div id="container" class="flex-container">
 
-    <div id="controls" style="height:50px">
+    <div id="controls" class="flex-container">
 
-      <paper-icon-button on-click="_toggleStart" id="start" src="icons/play.png" label="play/stop" style="padding:2px"></paper-icon-button>
+      <div class="flex-container">
 
-      <paper-dropdown-menu label="sounds" on-click="buffersChanged" selected="1">>
-          <paper-menu class="dropdown-content">
+        <div class="flex-item">
+        <paper-icon-button on-click="_toggleStart" id="start" src="icons/play.png" label="play/stop" style="padding:2px" class="flex-item"></paper-icon-button>
+        </div>
 
-            <template id="buf_dropdown" is="dom-repeat" items="[[_bufferNames]]" as="buf">
-              <paper-item on-click="toggleBuffer">[[buf]]</paper-item>
-            </template>
+        <paper-dropdown-menu label="sounds" on-click="buffersChanged" selected="1">>
+            <paper-menu class="dropdown-content">
 
-            <paper-item>
-              <paper-icon-button on-click="clickInput" icon="file-upload" label="upload file" style="padding:2px"></paper-icon-button>
-            </paper-item>
-          </paper-menu>
-      </paper-dropdown-menu>
+              <template id="buf_dropdown" is="dom-repeat" items="[[_bufferNames]]" as="buf">
+                <paper-item on-click="toggleBuffer">[[buf]]</paper-item>
+              </template>
 
-        <label>Semitones: </label>
-        <input type="number" is="iron-input" id="pitch" min="-36" max="36" step="1" value="{{semitones::input}}" bind-value="computedSemitones" style="width:40px">
-        <label>Rate: </label>
-        <input is="iron-input" type="number" label="playback rate (percent)" pin="true" id="rateSlider" min="0.01" max="3" value="{{playbackRate::input}}" bind-value="{{computedPlaybackRate}}" style="width: 40px">
+              <paper-item>
+                <paper-icon-button on-click="clickInput" icon="file-upload" label="upload file" style="padding:2px"></paper-icon-button>
+              </paper-item>
+            </paper-menu>
+        </paper-dropdown-menu>
+      </div>
+
+    <div class="flex-container">
+
+
+        <label class="flex-item">Semitones: </label>
+        <input class="flex-item" type="number" is="iron-input" id="pitch" min="-36" max="36" step="1" value="{{semitones::input}}" bind-value="computedSemitones" >
+        <label class="flex-item">Rate: </label>
+        <input class="flex-item" is="iron-input" type="number" label="playback rate (percent)" pin="true" id="rateSlider" min="0.01" max="3" value="{{playbackRate::input}}" bind-value="{{computedPlaybackRate}}">
 
 
 <!--         <input type="number" is="iron-input" id="pitch" min="-36" max="36" step="1" value="{{pitch::input}}" committedvalue="{{pitchValue}}" style="width:40px">
@@ -79,7 +87,7 @@ olos-soundfile
           </paper-dropdown>
       </paper-dropdown-menu>
     --> 
-    <div id="waveform" style="width:100%; height:100%; padding:20px" on-mousedown="mouseDn" on-mouseup="mouseUp" on-mousemove="mouseDrag" on-mouseleave="mouseUp"></div>
+    <div id="waveform" on-mousedown="mouseDn" on-mouseup="mouseUp" on-mousemove="mouseDrag" on-mouseleave="mouseUp"></div>
     </div>
   </template>
 </dom-module>
@@ -435,14 +443,17 @@ olos-soundfile
           sketch.setup = function () {
             var waveformDiv = self.$.waveform;
             var w = self.style.width.indexOf('px') > -1 ? Number(self.style.width.split('px')[0]) : 300;
-            var h = self.style.height.indexOf('px') > -1 ? Number(self.style.height.split('px')[0]) : 300;
-            var cnv = sketch.createCanvas(w, h);
-            waveformDiv.appendChild(cnv.elt);
-            cnv.canvas.style.setProperty('width', '100%');
-            cnv.canvas.style.setProperty('height', '100%');
+            var h = self.style.height.indexOf('px') > -1 ? Number(self.style.height.split('px')[0]) : 100;
+            console.log(w, h);
+            sketch.cnv = sketch.createCanvas(w, h);
+            waveformDiv.appendChild(sketch.cnv.elt);
+            sketch.cnv.canvas.style.setProperty('width', '100%');
+            sketch.cnv.canvas.style.setProperty('height', '100%');
             sketch.noLoop();
           };
           sketch.draw = function () {
+            sketch.cnv.canvas.style.setProperty('visibility', 'visible');
+
             // sketch.background(94,33,33);
             sketch.background(39, 39, 39);
             if (self.sf.buffer) {
@@ -619,8 +630,8 @@ olos-soundfile
         this.semitones = this.computedSemitones;
 
         if (rate <= 0) {
-          return 1;
           console.log( 'Error: Rate cannot be <= zero at the moment');
+          return 1;
         }
         return Math.round(this.freqToMidi(rate * 440));
       },

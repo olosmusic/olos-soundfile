@@ -1,10 +1,12 @@
 :host {
-  display: block;
+  /*display: flex;*/
+  /*flex-direction: row;*/
   color: #FF7FFE;
   /*font-family: 'RobotoDraft', sans-serif;*/
   font-size:10.5px;
   padding:0px;
-  overflow:visible;
+  overflow:scroll;
+  position:absolute;
 }
 
 #container {
@@ -17,11 +19,51 @@
   position:fixed;*/
 }
 
+#waveform {
+  padding:20px;
+}
+
+#dropdown {
+  top:0px;
+}
+
 .thing {
   box-shadow: 1px 1px 1px #888888;
   box-shadow: 10px 10px 5px #888888;
 }
 
-canvas {
-  visibility:visible !important;
+.flex-container {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  display: -webkit-box;
+  display: -moz-box;
+  display: -ms-flexbox;
+  display: -webkit-flex;
+  display: flex;
+  background:aliceblue;
+  -webkit-flex-flow: row wrap;
+  justify-content: space-around;
+}
+
+.flex-item {
+  padding: 5px;
+  margin-top: 10px;
+  text-align: center;
+  align-self: flex-start;
+    /*background:;*/
+
+}
+
+iron-dropdown {
+  top:0px;
+}
+
+.dropdown-content {
+  position:relative;
+  /*top:0px;*/
+  /*position:absolute;*/
+  display:block;
+  /*top:0px;*/
+  left:0px;
 }
