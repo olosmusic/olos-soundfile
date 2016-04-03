@@ -45,14 +45,18 @@ olos-soundfile
       <div class="flex-container">
 
         <div class="flex-item">
-        <paper-icon-button on-click="_toggleStart" id="start" src="icons/play.png" label="play/stop" style="padding:2px" class="flex-item"></paper-icon-button>
+          <paper-icon-button on-click="_toggleStart" id="start" src="icons/play.png" label="play/stop" style="padding:2px" class="flex-item"></paper-icon-button>
         </div>
 
         <paper-dropdown-menu label="sounds" on-click="buffersChanged" selected="1">>
             <paper-menu class="dropdown-content">
 
-              <template id="buf_dropdown" is="dom-repeat" items="[[_bufferNames]]" as="buf">
+<!--               <template id="buf_dropdown" is="dom-repeat" items="[[_bufferNames]]" as="buf">
                 <paper-item on-click="toggleBuffer">[[buf]]</paper-item>
+              </template> -->
+
+              <template id="buf_dropdown" is="dom-repeat" items="[[paths]]" as="path">
+                <paper-item data-filepath$="{{path}}" on-click="toggleBuffer">{{pathToFileName(path)}}</paper-item>
               </template>
 
               <paper-item>
@@ -66,10 +70,11 @@ olos-soundfile
 
 
         <label class="flex-item">Semitones: </label>
-        <input class="flex-item" type="number" is="iron-input" id="pitch" min="-36" max="36" step="1" value="{{semitones::input}}" bind-value="computedSemitones" >
-        <label class="flex-item">Rate: </label>
-        <input class="flex-item" is="iron-input" type="number" label="playback rate (percent)" pin="true" id="rateSlider" min="0.01" max="3" value="{{playbackRate::input}}" bind-value="{{computedPlaybackRate}}">
-
+        <input is="iron-input" type="number" id="pitch" min="-36" max="36" step="1" value="{{semitones::input}}" bind-value="computedSemitones" noLabelFloat="true">
+        <label class="flex-item">Rate: <span>{{displayPlaybackRate}}</span></label>
+<!--         <input class="flex-item" is="iron-input" type="number" label="playback rate (percent)" pin="true" id="rateSlider" min="0.01" max="3" value="{{playbackRate::input}}" bind-value="{{computedPlaybackRate}}">
+        <input class="flex-item" is="iron-input" type="number" label="test val" pin="true" min="0.01" max="3" value="{{testVal}}" bind-value="{{testVal}}">
+ -->
 
 <!--         <input type="number" is="iron-input" id="pitch" min="-36" max="36" step="1" value="{{pitch::input}}" committedvalue="{{pitchValue}}" style="width:40px">
  -->
@@ -78,6 +83,7 @@ olos-soundfile
  -->
         <input is="paper-input" type="file" hidden="" id="sfInput">
     </div>
+  </div>
 <!--       <paper-dropdown-menu label="Buffer Source">
           <paper-dropdown class="dropdown">
               <core-menu selected="0" on-core-select="{{setType}}" class="menu">
@@ -87,7 +93,7 @@ olos-soundfile
           </paper-dropdown>
       </paper-dropdown-menu>
     --> 
-    <div id="waveform" on-mousedown="mouseDn" on-mouseup="mouseUp" on-mousemove="mouseDrag" on-mouseleave="mouseUp"></div>
+      <div id="waveform" on-mousedown="mouseDn" on-mouseup="mouseUp" on-mousemove="mouseDrag" on-mouseleave="mouseUp"></div>
     </div>
   </template>
 </dom-module>
@@ -103,7 +109,6 @@ olos-soundfile
           }
         },
 
-
         // actual playback rate
         playbackRate: {
           type: Number,
@@ -117,12 +122,20 @@ olos-soundfile
           type: Number,
           computed: 'rateToSemitones(playbackRate)'
         },
+        displayPlaybackRate: {
+          type: Number,
+          value: 1
+        },
         semitones: {
           type: Number,
           value: 0,
           observer: 'semitonesChanged'
         },
 
+        testVal: {
+          type: Number,
+          value: 2
+        },
 
 
         testArray: {
@@ -144,6 +157,11 @@ olos-soundfile
           value: null,
           observer: 'bufferChanged'
         },
+        // bufferPath: {
+        //   type: String,
+        //   value: null,
+        //   observer: 'bufferPathChanged'
+        // },
         buffers: {
           type: Object,
           value: function () {
@@ -198,8 +216,8 @@ olos-soundfile
           type: Array,
           value: function () {
             return [
-              'settings',
-              'setupRateSlider'
+              'settings'
+              // 'setupRateSlider'
             ];
           }
         },
@@ -241,16 +259,21 @@ olos-soundfile
           self.sf.load();
         }
 
-        // preload all the paths
-        for (var i = 0; i < self.paths.length; i++) {
-          self._loadBuffer(self.paths[i], function (buf) {
-            self.buffers[buf.name] = buf;
-          });
-        }
+        // preload all the paths ** THIS IS BAD **
+        // for (var i = 0; i < self.paths.length; i++) {
+        //   self._loadBuffer(self.paths[i], function (buf) {
+        //     self.buffers[buf.name] = buf;
+        //   });
+        // }
+
+        // update, dont preload them all!
+
+        self._loadBuffer(self.paths[0], function (buf) {
+          self.buffers[buf.name] = buf;
+        });
+
         self.sf.disconnect();
         self.sf.playMode('restart');
-        self.slider = this.$.rateSlider;
-        self.setupRateSlider();
 
         // event listener for uploading files
         self.$.sfInput.onchange = function (e) {
@@ -363,12 +386,12 @@ olos-soundfile
         this.playing = !this.playing;
       },
       // publicly editable
-      setupRateSlider: function () {
-        this.slider.min = 0;
-        this.slider.max = 3;
-        this.slider.step = 0.001;
-        this.slider.value = 1;
-      },
+      // setupRateSlider: function () {
+      //   this.slider.min = 0;
+      //   this.slider.max = 3;
+      //   this.slider.step = 0.001;
+      //   this.slider.value = 1;
+      // },
       // TO DO
       rateParamChanged: function () {
       },
@@ -617,7 +640,7 @@ olos-soundfile
       },
 
       pitchToRate: function (pitch) {
-        console.log('p to r: ' + pitch);
+        // console.log('p to r: ' + pitch);
         return this.$.olos_helpers.pitchToPlaybackRate(pitch);
       },
       // TO DO: remove this
@@ -638,7 +661,8 @@ olos-soundfile
       getRate: function(semitones) {
         this.semitones = Number(semitones);
         var pbr = this.pitchToRate(semitones);
-        console.log('pbr: ' + pbr);
+        // console.log('pbr: ' + pbr);
+        this.displayPlaybackRate = pbr.toFixed(5);
         return pbr;
       },
       freqToMidi: function (freq) {
@@ -656,10 +680,20 @@ olos-soundfile
         self.sf.reversed = false;
       },
       toggleBuffer: function (e) {
+        var self = this;
         var selected = e.target;
         var bufName = selected.innerText;
-        var buffer = this.buffers[bufName];
-        this.buffer = buffer;
+
+        if (this.buffers[bufName]) {
+          this.buffer = this.buffers[bufName];
+        } else {
+          var path = selected.dataset.filepath;
+          console.log('loading ', path );
+          self._loadBuffer(path, function (buf) {
+            self.buffers[buf.name] = buf;
+            self.buffer = self.buffers[bufName];
+          });
+        }
       },
       _loadBuffer: function (path, callback) {
         var request = new XMLHttpRequest();
@@ -685,9 +719,14 @@ olos-soundfile
         this.$.buf_dropdown.render();
       },
       bufferChanged: function () {
+        console.log('buffer changed' + this.buffer);
         if (this.sf) {
           this.sf.buffer = this.buffer;
         }
+      },
+      // display default file paths
+      pathToFileName: function(path) {
+        return path.split('/').pop();
       },
       /**
        *  connect to master output a la tone.js
