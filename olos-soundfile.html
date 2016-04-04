@@ -10,12 +10,13 @@
 
 <link rel="import" href="../olos-helpers/olos-helpers.html">
 
-<!-- <link rel="import" href="../font-roboto/roboto.html"> -->
-
 <!--
 olos-soundfile
 ##### Example
 
+A simple soundfile player, triggers with a play button.
+
+Try olos-sampler for more!
 
 @element olos-soundfile
 @blurb 
@@ -40,60 +41,45 @@ olos-soundfile
 
     <div id="container" class="flex-container">
 
-    <div id="controls" class="flex-container">
+      <div id="controls" class="flex-container">
 
-      <div class="flex-container">
+          <div class="flex-container">
 
-        <div class="flex-item">
-          <paper-icon-button on-click="_toggleStart" id="start" src="icons/play.png" label="play/stop" style="padding:2px" class="flex-item"></paper-icon-button>
+            <div class="flex-item">
+              <paper-icon-button on-click="_toggleStart" id="start" src="icons/play.png" label="play/stop" style="padding:2px" class="flex-item"></paper-icon-button>
+            </div>
+
+            <paper-dropdown-menu label="sounds" on-click="buffersChanged" selected="1">>
+                <paper-menu class="dropdown-content">
+
+    <!--               <template id="buf_dropdown" is="dom-repeat" items="[[_bufferNames]]" as="buf">
+                    <paper-item on-click="toggleBuffer">[[buf]]</paper-item>
+                  </template> -->
+
+                  <template id="buf_dropdown" is="dom-repeat" items="[[paths]]" as="path">
+                    <paper-item data-filepath$="{{path}}" on-click="toggleBuffer">{{pathToFileName(path)}}</paper-item>
+                  </template>
+
+                  <paper-item>
+                    <paper-icon-button on-click="clickInput" icon="file-upload" label="upload file" style="padding:2px"></paper-icon-button>
+                  </paper-item>
+                </paper-menu>
+            </paper-dropdown-menu>
+          </div>
+
+        <div class="flex-container">
+
+
+            <label class="flex-item">Semitones: </label>
+            <input is="iron-input" type="number" id="pitch" min="-36" max="36" step="1" value="{{semitones::input}}" bind-value="computedSemitones" noLabelFloat="true" style="height: 20px;
+              margin-top: 10px;">
+            <label class="flex-item">Rate: <span>{{displayPlaybackRate}}</span></label>
+            <input is="paper-input" type="file" hidden="" id="sfInput">
         </div>
-
-        <paper-dropdown-menu label="sounds" on-click="buffersChanged" selected="1">>
-            <paper-menu class="dropdown-content">
-
-<!--               <template id="buf_dropdown" is="dom-repeat" items="[[_bufferNames]]" as="buf">
-                <paper-item on-click="toggleBuffer">[[buf]]</paper-item>
-              </template> -->
-
-              <template id="buf_dropdown" is="dom-repeat" items="[[paths]]" as="path">
-                <paper-item data-filepath$="{{path}}" on-click="toggleBuffer">{{pathToFileName(path)}}</paper-item>
-              </template>
-
-              <paper-item>
-                <paper-icon-button on-click="clickInput" icon="file-upload" label="upload file" style="padding:2px"></paper-icon-button>
-              </paper-item>
-            </paper-menu>
-        </paper-dropdown-menu>
       </div>
-
-    <div class="flex-container">
-
-
-        <label class="flex-item">Semitones: </label>
-        <input is="iron-input" type="number" id="pitch" min="-36" max="36" step="1" value="{{semitones::input}}" bind-value="computedSemitones" noLabelFloat="true">
-        <label class="flex-item">Rate: <span>{{displayPlaybackRate}}</span></label>
-<!--         <input class="flex-item" is="iron-input" type="number" label="playback rate (percent)" pin="true" id="rateSlider" min="0.01" max="3" value="{{playbackRate::input}}" bind-value="{{computedPlaybackRate}}">
-        <input class="flex-item" is="iron-input" type="number" label="test val" pin="true" min="0.01" max="3" value="{{testVal}}" bind-value="{{testVal}}">
- -->
-
-<!--         <input type="number" is="iron-input" id="pitch" min="-36" max="36" step="1" value="{{pitch::input}}" committedvalue="{{pitchValue}}" style="width:40px">
- -->
-<!--         <label>Rate: </label>
-        <input is="iron-input" type="number" label="playback rate (percent)" pin="true" id="rateSlider" min="0.01" max="3" value="{{rateValue::input}}" committedvalue="{{rateValue}}" style="width: 40px">
- -->
-        <input is="paper-input" type="file" hidden="" id="sfInput">
-    </div>
-  </div>
-<!--       <paper-dropdown-menu label="Buffer Source">
-          <paper-dropdown class="dropdown">
-              <core-menu selected="0" on-core-select="{{setType}}" class="menu">
-                  <paper-item label="loadNew">Load New</paper-item>
-                  <paper-item label="doorbell">Doorbell</paper-item>
-              </core-menu>
-          </paper-dropdown>
-      </paper-dropdown-menu>
-    --> 
-      <div id="waveform" on-mousedown="mouseDn" on-mouseup="mouseUp" on-mousemove="mouseDrag" on-mouseleave="mouseUp"></div>
+      {{name}}
+      <div id="waveform" height$={{waveformheight}} on-mousedown="mouseDn" on-mouseup="mouseUp" on-mousemove="mouseDrag" on-mouseleave="mouseUp">
+      </div>
     </div>
   </template>
 </dom-module>
@@ -131,13 +117,20 @@ olos-soundfile
           value: 0,
           observer: 'semitonesChanged'
         },
-
+        name: {
+          value: undefined,
+          type: String,
+          notify: true
+        },
         testVal: {
           type: Number,
           value: 2
         },
-
-
+        waveformheight: {
+          notify: true,
+          value: '200px',
+          type: String
+        },
         testArray: {
           type: Array,
           value: ['beck', 'test']
@@ -201,7 +194,6 @@ olos-soundfile
               this.resolveUrl('../_audio/707/Snare-707.mp3'),
               this.resolveUrl('../_audio/707/Kick-707.mp3'),
               this.resolveUrl('../_audio/marimba/C3.mp3'),
-              this.resolveUrl('../_audio/marimba/C3.mp3'),
               this.resolveUrl('../_audio/design/json1.mp3'),
               this.resolveUrl('../_audio/design/json2.mp3')
             ];
@@ -259,17 +251,11 @@ olos-soundfile
           self.sf.load();
         }
 
-        // preload all the paths ** THIS IS BAD **
-        // for (var i = 0; i < self.paths.length; i++) {
-        //   self._loadBuffer(self.paths[i], function (buf) {
-        //     self.buffers[buf.name] = buf;
-        //   });
-        // }
-
         // update, dont preload them all!
 
         self._loadBuffer(self.paths[0], function (buf) {
           self.buffers[buf.name] = buf;
+          self.buffer = self.buffers[buf.name];
         });
 
         self.sf.disconnect();
@@ -365,7 +351,7 @@ olos-soundfile
             self.$.start.src = self.rootfolder + 'icons/stop.png';
           }, 10);
         } catch (e) {
-          throw e;
+          console.log( e );
         }
       },
       stop: function (timeFromNow) {
@@ -466,13 +452,15 @@ olos-soundfile
           sketch.setup = function () {
             var waveformDiv = self.$.waveform;
             var w = self.style.width.indexOf('px') > -1 ? Number(self.style.width.split('px')[0]) : 300;
-            var h = self.style.height.indexOf('px') > -1 ? Number(self.style.height.split('px')[0]) : 100;
+            var h = Number(self.waveformheight.split('px')[0]);
             console.log(w, h);
             sketch.cnv = sketch.createCanvas(w, h);
             waveformDiv.appendChild(sketch.cnv.elt);
             sketch.cnv.canvas.style.setProperty('width', '100%');
             sketch.cnv.canvas.style.setProperty('height', '100%');
-            sketch.noLoop();
+
+            // loop is necessary for selecting audio points
+            // sketch.noLoop();
           };
           sketch.draw = function () {
             sketch.cnv.canvas.style.setProperty('visibility', 'visible');
@@ -525,6 +513,7 @@ olos-soundfile
       // mouse interaction
       mouseUp: function (e) {
         var self = this;
+
         if (self._dragging) {
           self._dragging = false;
           var minPercent = Math.min.apply(null, self._dragPoints);
@@ -541,14 +530,18 @@ olos-soundfile
         }
       },
       mouseDn: function (e) {
+        console.log(e);
         this._dragging = true;
         // clear dragPoints and reset
         this._dragPoints = [];
         this._dragPoints[0] = this._p5.mouseX / this._p5.width;
         this.cueStart = this._dragPoints[0] * this.buffer.duration;
         this.cueDur = null;
+
       },
       mouseDrag: function (e) {
+        // this._draw();
+
         if (this._dragging) {
           this._dragPoints[1] = this._p5.mouseX / this._p5.width;
         }
@@ -560,7 +553,7 @@ olos-soundfile
         if (self.sf) {
           // try {
           for (var i = 0; i < p5.soundOut.soundArray.length; i++) {
-            if (p5.soundOut.soundArray[i] == self.sf) {
+            if (p5.soundOut.soundArray[i] == self.sf && p5.soundOut.soundArray[i] != null) {
               // TO DO: make sure this works in p5.sound instance mode
               p5.soundOut.soundArray[i].input = null;
               p5.soundOut.soundArray.splice(i, 1);
@@ -688,10 +681,10 @@ olos-soundfile
           this.buffer = this.buffers[bufName];
         } else {
           var path = selected.dataset.filepath;
-          console.log('loading ', path );
           self._loadBuffer(path, function (buf) {
             self.buffers[buf.name] = buf;
             self.buffer = self.buffers[bufName];
+            self._draw();
           });
         }
       },
@@ -714,6 +707,15 @@ olos-soundfile
         };
         request.send();
       },
+      // called by sampler
+      _resetBuffer: function(absPath) {
+        var self = this;
+        self._loadBuffer(absPath, function (buf) {
+          self.buffers[buf.name] = buf;
+          self.buffer = self.buffers[buf.name];
+          self._draw();
+        });
+      },
       buffersChanged: function () {
         this._bufferNames = Object.keys(this.buffers);
         this.$.buf_dropdown.render();
@@ -735,6 +737,7 @@ olos-soundfile
         this.sf.connect();
       },
       semitonesChanged: function() {
+        this.playbackRate = this.getRate(this.semitones);
         console.log('semis changed');
       },
       computeNumber: function(str) {

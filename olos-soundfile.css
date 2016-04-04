@@ -20,7 +20,8 @@
 }
 
 #waveform {
-  padding:20px;
+  padding:5px 10px;
+  width:100%;
 }
 
 #dropdown {
@@ -66,4 +67,12 @@ iron-dropdown {
   display:block;
   /*top:0px;*/
   left:0px;
+}
+
+:host.sampler #controls {
+  display: none;
+}
+
+canvas {
+  visibility: visible !important;
 }
